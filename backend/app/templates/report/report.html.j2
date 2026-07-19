@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>تقرير تحليلي — قضية {{ case.case_number }}</title>
+<style>
+  @page {
+    size: A4;
+    margin: 2.2cm 1.8cm 2.4cm 1.8cm;
+    @top-left { content: "سري"; color: #cf2d56; font-weight: 600; font-size: 9pt;
+                font-family: "IBM Plex Sans Arabic", sans-serif; }
+    @bottom-center {
+      content: "الصفحة " counter(page, arabic-indic) " من " counter(pages, arabic-indic);
+      font-size: 8pt; color: #807d72; font-family: "IBM Plex Sans Arabic", sans-serif;
+    }
+    @bottom-left { content: "رأس سلسلة التدقيق: {{ audit_head_short }}";
+                   font-size: 7pt; color: #a09c92; font-family: "JetBrains Mono", monospace; }
+  }
+  * { box-sizing: border-box; letter-spacing: 0; }
+  img { image-rendering: pixelated; } /* PDF/A forbids Interpolate=true (ISO 19005 §6.2.8) */
+  body { font-family: "IBM Plex Sans Arabic", "DejaVu Sans", sans-serif;
+         color: #26251e; font-size: 10.5pt; line-height: 1.7; margin: 0; }
+  h1, h2, h3 { font-weight: 400; line-height: 1.35; color: #26251e; }
+  h1 { font-size: 24pt; margin: 0 0 6pt; }
+  h2 { font-size: 15pt; margin: 22pt 0 8pt; padding-bottom: 4pt;
+       border-bottom: 1px solid #e6e5e0; page-break-after: avoid; }
+  h3 { font-size: 12pt; margin: 14pt 0 4pt; font-weight: 600; page-break-after: avoid; }
+  p { margin: 0 0 7pt; text-align: justify; }
+  .mono { font-family: "JetBrains Mono", monospace; direction: ltr;
+          font-size: 8pt; color: #5a5852; word-break: break-all; }
+  .muted { color: #807d72; }
+  .cover { text-align: center; padding-top: 90pt; page-break-after: always; }
+  .confidential { display: inline-block; color: #cf2d56; border: 1.5pt solid #cf2d56;
+                  border-radius: 6pt; padding: 3pt 18pt; font-size: 14pt; font-weight: 600;
+                  margin-bottom: 26pt; }
+  .cover .sys { color: #807d72; font-size: 11pt; margin-bottom: 40pt; }
+  .cover-card { background: #f7f7f4; border: 1px solid #e6e5e0; border-radius: 12pt;
+                padding: 18pt 24pt; margin: 0 40pt 18pt; text-align: right; }
+  .cover-card table { width: 100%; border-collapse: collapse; }
+  .cover-card td { padding: 4pt 2pt; vertical-align: top; }
+  .cover-card td.k { color: #807d72; width: 32%; }
+  .stats { display: flex; justify-content: center; gap: 10pt; margin: 0 40pt; }
+  .stat { flex: 1; background: #ffffff; border: 1px solid #e6e5e0; border-radius: 8pt;
+          padding: 8pt 4pt; text-align: center; }
+  .stat .n { font-size: 16pt; }
+  .stat .l { font-size: 8pt; color: #807d72; }
+  .disclaimer { background: #f7f7f4; border: 1px solid #e6e5e0; border-right: 3pt solid #b45309;
+                border-radius: 8pt; padding: 10pt 14pt; font-size: 9.5pt; margin-top: 14pt; }
+  table.data { width: 100%; border-collapse: collapse; margin: 6pt 0 12pt; font-size: 9.5pt; }
+  table.data th { background: #f7f7f4; border: 1px solid #e6e5e0; padding: 5pt 6pt;
+                  font-weight: 600; text-align: right; }
+  table.data td { border: 1px solid #e6e5e0; padding: 5pt 6pt; vertical-align: top; }
+  .badge { display: inline-block; border-radius: 999pt; padding: 1pt 8pt; font-size: 8pt;
+           background: #e6e5e0; color: #26251e; }
+  .badge.review { background: #fdf3e7; color: #b45309; border: 1px solid #b45309; }
+  .badge.confirmed { background: #e9f5ef; color: #1f8a65; border: 1px solid #1f8a65; }
+  .badge.rejected { background: #fdeaef; color: #cf2d56; border: 1px solid #cf2d56; }
+  .cat { display: inline-block; border-radius: 999pt; padding: 1pt 8pt; font-size: 8pt;
+         color: #ffffff; }
+  .cat-weapons { background: #c25e4c; } .cat-biological { background: #a94464; }
+  .cat-impressions { background: #7b6fa8; } .cat-documents_devices { background: #4e7fa5; }
+  .cat-scene_markers { background: #8a7b3c; } .cat-trace { background: #5e8f6c; }
+  .cat-human_presence { background: #6b6b6b; }
+  .entity { border: 1px solid #e6e5e0; border-radius: 10pt; padding: 10pt 12pt;
+            margin-bottom: 10pt; page-break-inside: avoid; }
+  .entity h3 { margin-top: 0; }
+  .entity img { max-width: 46%; max-height: 200pt; border-radius: 6pt;
+                border: 1px solid #e6e5e0; margin: 4pt 0 4pt 6pt; }
+  .pair { display: flex; gap: 8pt; }
+  .pair figure { margin: 0; flex: 1; text-align: center; }
+  .pair img { max-width: 100%; }
+  figcaption { font-size: 8pt; color: #807d72; }
+  .frames img { max-width: 31%; margin: 2pt; border-radius: 6pt; border: 1px solid #e6e5e0; }
+  ul.events { padding-right: 16pt; margin: 4pt 0 10pt; }
+  ul.events li { margin-bottom: 4pt; }
+  .kv { font-size: 9pt; color: #5a5852; }
+  section { page-break-inside: auto; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="confidential">سري</div>
+  <h1>تقرير تحليلي لمسرح الجريمة</h1>
+  <div class="sys">نظام «أثر» للتحليل الجنائي بمساعدة الذكاء الاصطناعي — «كل تماسٍ يترك أثراً»</div>
+  <div class="cover-card">
+    <table>
+      <tr><td class="k">رقم القضية</td><td>{{ case.case_number_ar }}</td></tr>
+      <tr><td class="k">عنوان القضية</td><td>{{ case.title_ar }}</td></tr>
+      {% if case.location_ar %}<tr><td class="k">الموقع</td><td>{{ case.location_ar }}</td></tr>{% endif %}
+      {% if case.investigator_name_ar %}<tr><td class="k">المحقق</td><td>{{ case.investigator_name_ar }}</td></tr>{% endif %}
+      {% if case.incident_dual_date %}<tr><td class="k">تاريخ الواقعة</td><td>{{ case.incident_dual_date }}</td></tr>{% endif %}
+      <tr><td class="k">تاريخ إصدار التقرير</td><td>{{ generated.dual_date }} — {{ generated.time }}</td></tr>
+      {% if generated.by_label %}<tr><td class="k">أصدره</td><td>{{ generated.by_label }}</td></tr>{% endif %}
+      <tr><td class="k">رقم التحليل</td><td>{{ run.run_number_ar }}</td></tr>
+    </table>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="n">{{ stats.sources_ar }}</div><div class="l">مصادر</div></div>
+    <div class="stat"><div class="n">{{ stats.frames_analyzed_ar }}</div><div class="l">إطارات محللة</div></div>
+    <div class="stat"><div class="n">{{ stats.entities_ar }}</div><div class="l">أدلة موحدة</div></div>
+    <div class="stat"><div class="n">{{ stats.pending_review_ar }}</div><div class="l">بانتظار المراجعة</div></div>
+  </div>
+  <div class="disclaimer" style="margin: 26pt 40pt 0;">{{ disclaimer }}</div>
+</div>
+
+<section>
+  <h2>أولاً: الملخص التنفيذي</h2>
+  <p>{{ narratives.exec_summary or 'لا يتوفر ملخص تنفيذي لهذا التحليل.' }}</p>
+</section>
+
+<section>
+  <h2>ثانياً: السرد الزمني للأحداث</h2>
+  <p>{{ narratives.timeline or 'لا يتوفر سرد زمني.' }}</p>
+  {% if events %}
+  <h3>وقائع الجدول الزمني الموثقة</h3>
+  <ul class="events">
+    {% for ev in events %}<li>{{ ev.text }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% if offsets %}
+  <h3>إزاحات الساعات بين المصادر</h3>
+  <table class="data">
+    <tr><th>المصدر</th><th>الإزاحة (ثانية)</th><th>طريقة التقدير</th></tr>
+    {% for o in offsets %}
+    <tr><td>{{ o.source_label }}</td><td>{{ o.offset_ar }}</td><td>{{ o.method_ar }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</section>
+
+<section>
+  <h2>ثالثاً: جدول الأدلة</h2>
+  {% if entities %}
+  <table class="data">
+    <tr><th>الدليل</th><th>الاسم</th><th>الفئة</th><th>المصادر</th>
+        <th>درجة ثقة النموذج</th><th>حالة المراجعة</th></tr>
+    {% for e in entities %}
+    <tr>
+      <td>{{ e.label_ar }}</td>
+      <td>{{ e.name_ar }}</td>
+      <td><span class="cat cat-{{ e.category }}">{{ e.category_ar }}</span></td>
+      <td>{{ e.sources|join('، ') }}</td>
+      <td>{{ e.confidence_pct }}</td>
+      <td>
+        {% if e.review_status == 'confirmed' %}<span class="badge confirmed">{{ e.review_status_ar }}</span>
+        {% elif e.review_status == 'rejected' %}<span class="badge rejected">{{ e.review_status_ar }}</span>
+        {% elif e.needs_review %}<span class="badge review">يتطلب مراجعة بشرية</span>
+        {% else %}<span class="badge">{{ e.review_status_ar }}</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p>لم يتم رصد أدلة ظاهرة في المادة المفحوصة.</p>
+  {% endif %}
+</section>
+
+{% if entities %}
+<section>
+  <h2>رابعاً: التحليل التفصيلي للأدلة</h2>
+  {% for e in entities %}
+  <div class="entity">
+    <h3>{{ e.label_ar }} — {{ e.name_ar }}
+      <span class="cat cat-{{ e.category }}">{{ e.category_ar }}</span>
+      {% if e.needs_review and e.review_status == 'pending' %}<span class="badge review">يتطلب مراجعة بشرية</span>{% endif %}
+      {% if e.review_status == 'confirmed' %}<span class="badge confirmed">مؤكد</span>{% endif %}
+      {% if e.review_status == 'rejected' %}<span class="badge rejected">مرفوض في المراجعة</span>{% endif %}
+    </h3>
+    {% if e.before and e.after %}
+    <div class="pair">
+      <figure><img src="{{ asset_base }}{{ e.before }}" alt=""><figcaption>قبل تغيّر الموضع</figcaption></figure>
+      <figure><img src="{{ asset_base }}{{ e.after }}" alt=""><figcaption>بعد تغيّر الموضع</figcaption></figure>
+    </div>
+    {% elif e.crop %}
+    <img src="{{ asset_base }}{{ e.crop }}" alt="">
+    {% endif %}
+    <p><strong>الوصف:</strong> {{ e.description_ar }}</p>
+    <p><strong>الدلالة الجنائية المحتملة:</strong> {{ e.forensic_significance_ar }}</p>
+    <p><strong>توصية الحفظ والتعامل:</strong> {{ e.handling_recommendation_ar }}</p>
+    {% if e.merge_rationale_ar %}<p class="kv"><strong>أساس التوحيد:</strong> {{ e.merge_rationale_ar }}</p>{% endif %}
+    {% if e.review_note_ar %}<p class="kv"><strong>ملاحظة المراجع:</strong> {{ e.review_note_ar }}</p>{% endif %}
+    <p class="kv">درجة ثقة النموذج: {{ e.confidence_pct }} — المشاهدات: {{ e.observations }}
+       {% if e.first_ts %}— أول ظهور: {{ e.first_ts }}{% endif %}
+       {% if e.last_ts %}— آخر رصد: {{ e.last_ts }}{% endif %}</p>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section>
+  <h2>خامساً: تحليل المصادر</h2>
+  {% for m in media %}
+  <h3>{{ m.label }} <span class="badge">{{ m.kind_ar }} — {{ m.source_type_ar }}</span></h3>
+  {% for ps in per_source_narratives %}{% if ps.media_id == m.id %}<p>{{ ps.content }}</p>{% endif %}{% endfor %}
+  <p class="kv">
+    الملف: {{ m.filename }} — الحجم: {{ m.size_ar }}
+    {% if m.duration %} — المدة: {{ m.duration }}{% endif %}
+    {% if m.creation_time %} — وقت الإنشاء (بيانات وصفية): <span class="mono">{{ m.creation_time }}</span>{% endif %}
+    {% if m.device %} — الجهاز: {{ m.device }}{% endif %}
+    {% if m.gps %} — إحداثيات: <span class="mono">{{ m.gps.lat }}, {{ m.gps.lon }}</span>{% endif %}
+  </p>
+  {% if m.annotated_frames %}
+  <div class="frames">
+    {% for f in m.annotated_frames %}<img src="{{ asset_base }}{{ f }}" alt="">{% endfor %}
+  </div>
+  {% endif %}
+  {% endfor %}
+</section>
+
+<section>
+  <h2>سادساً: العلاقات المكانية بين الأدلة</h2>
+  <p>{{ narratives.spatial or 'لا يتوفر تحليل مكاني.' }}</p>
+</section>
+
+<section>
+  <h2>سابعاً: ما يتطلب تحقيقاً أعمق ومراجعة بشرية</h2>
+  <p>{{ narratives.review_needed or 'لا توجد عناصر معلّقة.' }}</p>
+</section>
+
+<section>
+  <h2>ثامناً: التوصيات</h2>
+  <p>{{ narratives.recommendations or 'لا توصيات إضافية.' }}</p>
+</section>
+
+<section>
+  <h2>تاسعاً: سلسلة الحيازة</h2>
+  <p class="kv">الملفات الأصلية محفوظة للقراءة فقط؛ جميع عمليات التعليم تمت على نسخ. البصمات أدناه حُسبت خوارزمية SHA-256 عند الرفع وتم التحقق منها قبل التحليل.</p>
+  <table class="data">
+    <tr><th>المصدر</th><th>الملف</th><th>البصمة SHA-256</th></tr>
+    {% for m in media %}
+    <tr><td>{{ m.label }}</td><td>{{ m.filename }}</td>
+        <td class="mono">{{ m.sha256 }}</td></tr>
+    {% endfor %}
+  </table>
+  <p class="kv">رأس سلسلة سجل التدقيق عند إصدار التقرير: <span class="mono">{{ audit_head }}</span></p>
+</section>
+
+<section>
+  <h2>ملحق: بيانات إعادة الإنتاج</h2>
+  <p class="kv">وضع النموذج: {{ run.model_mode }} — المزود: {{ run.provider }}
+     {% if run.model_fast %} — نموذج الفرز/الكشف: <span class="mono">{{ run.model_fast }}</span>{% endif %}
+     {% if run.model_thinking %} — نموذج التحليل العميق: <span class="mono">{{ run.model_thinking }}</span>{% endif %}</p>
+  {% if run.prompt_hashes %}
+  <table class="data">
+    <tr><th>ملف الموجّه</th><th>البصمة (مختصرة)</th></tr>
+    {% for p in run.prompt_hashes %}
+    <tr><td class="mono">{{ p.file }}</td><td class="mono">{{ p.sha_short }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  <div class="disclaimer">{{ disclaimer }}</div>
+</section>
+
+</body>
+</html>

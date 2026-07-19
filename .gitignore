@@ -1,0 +1,38 @@
+# runtime data (originals, derived, db, reports)
+data/
+backend/data/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# node
+node_modules/
+frontend/dist/
+
+# env & local
+.env
+*.local
+.DS_Store
+Thumbs.db
+
+# test artifacts
+test-results/
+playwright-report/
+backend/tests/report/_out/
+backend/app/templates/docx/report_ar.docx
+
+# evaluation artifacts
+backend/eval/data/
+backend/eval/outputs/
+backend/samples/
+backend/proof_boxes.jpg
+frontend/package-lock.json
+
+.claude/
+frontend/tsconfig.tsbuildinfo
