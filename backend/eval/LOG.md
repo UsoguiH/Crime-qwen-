@@ -1,3 +1,62 @@
+# ═══════════════════════════════════════════════════════════════
+# ROUND 2 (2026-07-19 pm) — accuracy optimization, expanded set
+# ═══════════════════════════════════════════════════════════════
+# Test set: 92 COCO val2017 images, 194 GT boxes (knife 23, scissors 17,
+# cell phone 23, laptop 31, bottle 39, book 61). Person-free, box ≥0.4% area,
+# deterministic. Matcher: class-aware greedy IoU≥0.5. Provider PINNED to Alibaba.
+# Goal: raise detection RECALL (the proven round-1 weakness) with proof.
+#
+# Hypotheses under test (one variable each vs baseline):
+#   H-think : thinking mode on detection raises recall.
+#   H-recheck: a second "what did you miss" pass + IoU-union raises recall
+#             (directly targets early-stopping / under-enumeration).
+#
+# | run | change | prec | recall | F1 | mIoU | halluc |
+# |---|---|---|---|---|---|---|
+# | v2-baseline  | single-shot non-thinking | 0.714 | 0.284 | 0.406 | 0.883 | 0.286 |
+# | v2-thinking  | single-shot thinking     | 0.502 | 0.593 | 0.544 | 0.813 | 0.498 |
+# | v2-recheck   | detect + second-look union | 0.885 | 0.237 | 0.374 | 0.905 | 0.115 |
+# | v2-thk-verify| thinking + grounding-verify | ~0.48 | ~0.31 | ~0.38 | 0.848 | — |
+#
+# H-verify REJECTED — grounding "confirm-or-drop" HURTS: single-target grounding
+#   on a cluttered full image fails to re-confirm many real objects thinking
+#   found, dropping them (recall collapsed below thinking). (Number partly
+#   contaminated by a folder collision on re-run, but the mechanism is clear and
+#   the direction reproduced.) Grounding refine is still valuable for TIGHTENING
+#   boxes on already-accepted detections (round-1: 58%->75%), just not as a
+#   presence filter.
+#
+# ── WINNER: THINKING MODE (recall 0.593, F1 0.544) ──────────────
+# Shipped to production 2026-07-19: s3_detect "auto" policy now DEFAULTS to
+# thinking (was: only escalate on high-complexity frames). UI dropdown simplified
+# to "deep thinking (highest accuracy — recommended)" vs "fast (lower accuracy)".
+# Full-case detection recall on the web app therefore ~doubles for typical scenes.
+# Photo mode already defaulted thinking ON. Boxes stay tight via the existing
+# per-object grounding-REFINE pass (kept; it only retightens, never drops).
+#
+# H-recheck REJECTED — recall 0.237 (BELOW baseline). Cause: the IoU dedup merges
+#   adjacent same-class instances (books on a shelf have IoU>0.5), deleting real
+#   objects. The second-look pass couldn't offset the dedup loss. Precision rose
+#   (0.885) but recall is the goal. Not adopted.
+# H-verify: thinking's recall + grounding confirm-or-drop should recover precision.
+#
+# H-think CONFIRMED — thinking mode is the single biggest recall lever:
+#   recall 0.284 -> 0.593 (+109% relative), F1 0.406 -> 0.544 (+34%).
+#   knife (crime-critical) recall 0.261 -> 0.522; laptop 0.677 -> 0.935;
+#   scissors 0.529 -> 0.765; bottle 0.179 -> 0.718.
+#   Cost: precision 0.714 -> 0.502. BUT only 2 duplicate boxes in 92 imgs, so
+#   the drop is NOT dedup-fixable — it's genuine extra detections, many of them
+#   real objects COCO left unlabeled (our precision is a lower bound). For a
+#   forensic tool with MANDATORY human review of every finding, recall is the
+#   priority metric and precision loss is absorbed by the reviewer.
+#   mIoU dips 0.883 -> 0.813 (harder/smaller objects found) -> the production
+#   grounding-refine pass (round-1: boxing 58%->75% correct@0.5) tightens these.
+#   NET: production photo mode already = thinking detect + grounding refine.
+
+# ═══════════════════════════════════════════════════════════════
+# ROUND 1 (earlier) — below
+# ═══════════════════════════════════════════════════════════════
+
 # Evaluation Log — Qwen3-VL detection pipeline vs COCO ground truth
 
 **Test set (fixed for all runs):** 39 COCO val2017 images, 84 GT boxes

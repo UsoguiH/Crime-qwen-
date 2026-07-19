@@ -108,6 +108,10 @@ async def ask_photo(media_id: str, body: AskBody,
                        g.bbox_2d[2] / 1000, g.bbox_2d[3] / 1000]}
              for g in primary.grounded_boxes
              if len(g.bbox_2d) == 4]
+    # same accuracy pipeline as detection boxes: ground-refine + dedup
+    if boxes and not cannot:
+        from app.pipeline.grounding import refine_answer_boxes
+        boxes = await refine_answer_boxes(vlm, img_bytes, boxes)
 
     row = PhotoQuestion(
         media_file_id=media_id, case_id=media.case_id, question_ar=q,

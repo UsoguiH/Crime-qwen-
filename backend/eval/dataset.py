@@ -19,7 +19,7 @@ ANN_URL = "http://images.cocodataset.org/annotations/annotations_trainval2017.zi
 IMG_URL = "http://images.cocodataset.org/val2017/{file_name}"
 
 TARGET_CLASSES = ["knife", "scissors", "cell phone", "laptop", "bottle", "book"]
-PER_CLASS = 7
+PER_CLASS = 18              # more images → tighter accuracy estimates for the iteration
 MIN_AREA_RATIO = 0.004      # box ≥0.4% of image — excludes unfairly tiny objects
 MAX_TARGET_BOXES = 8        # keep matching tractable per image
 

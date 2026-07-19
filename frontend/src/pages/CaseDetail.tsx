@@ -146,9 +146,8 @@ function Overview({ caseData, run, mediaCount, onChanged }: {
         <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-hairline-soft">
           <select value={policy} onChange={(e) => setPolicy(e.target.value)}
                   className={inputCls + " w-auto"}>
-            <option value="auto">تفكير عميق تلقائي</option>
-            <option value="always">تفكير عميق دائماً (أدق وأبطأ)</option>
-            <option value="never">بدون تفكير عميق (أسرع)</option>
+            <option value="auto">تفكير عميق (أعلى دقة — موصى به)</option>
+            <option value="never">بدون تفكير عميق (أسرع، دقة أقل)</option>
           </select>
           <Button variant="primary" disabled={busy || mediaCount === 0 ||
                     (run ? ["queued", "running"].includes(run.status) : false)}

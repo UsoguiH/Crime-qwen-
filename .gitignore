@@ -36,3 +36,4 @@ frontend/package-lock.json
 
 .claude/
 frontend/tsconfig.tsbuildinfo
+backend/eval/realdata/

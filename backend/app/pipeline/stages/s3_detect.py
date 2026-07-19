@@ -68,8 +68,10 @@ async def _detect_frame(ctx: Ctx, triage: TriageResult, frame: Frame,
                         media: MediaFile, policy: str, review_thr: float,
                         notes: str) -> None:
     human = triage.human_presence_suspected
-    thinking = {"always": True, "never": False}.get(
-        policy, triage.complexity == "high" or human)
+    # eval 2026-07-19 (92 labeled imgs): thinking doubles detection recall
+    # 0.284 -> 0.593. Accuracy is the priority, so "auto" now DEFAULTS to
+    # thinking; only the explicit "never" (fast) option skips it.
+    thinking = {"never": False}.get(policy, True)
     await detect_one(ctx, frame, media, thinking=thinking,
                      human_addendum=human, review_thr=review_thr, notes=notes)
 
@@ -155,12 +157,15 @@ async def run_photo(ctx: Ctx) -> None:
                                ctx.settings.confidence_review_threshold))
     notes = (case.notes_ar or "")[:500]
 
-    from app.pipeline.grounding import ground_detections
+    from app.pipeline.grounding import dedup_frame, ground_detections
 
     for frame in todo:
         # human addendum always on: no triage signal exists in photo mode
         await detect_one(ctx, frame, m, thinking=thinking, human_addendum=True,
                          review_thr=review_thr, notes=notes)
+        # merge duplicate boxes on the same object (thinking mode can fragment
+        # one object into several) — BEFORE grounding, so we ground each object once
+        removed = await dedup_frame(ctx, ctx.run_id, frame.id)
         # decoupled grounding: detection said WHAT, now fix WHERE (accurate boxes)
         if ctx.settings.model_mode != "mock":
             async with ctx.factory() as session:
@@ -169,7 +174,9 @@ async def run_photo(ctx: Ctx) -> None:
                                             Detection.frame_id == frame.id))
                 ).scalars().all()
             n = await ground_detections(ctx, frame, m, dets)
-            log.info("photo grounding: re-grounded %d/%d boxes", n, len(dets))
+            # second dedup: grounding can converge two boxes onto the same object
+            removed += await dedup_frame(ctx, ctx.run_id, frame.id)
+            log.info("photo: re-grounded %d boxes, merged %d duplicates", n, removed)
         done.append(frame.id)
         await ctx.set_step(3, current=len(done), checkpoint={"done": done})
 

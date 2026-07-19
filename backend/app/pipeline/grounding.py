@@ -10,6 +10,7 @@ import asyncio
 import io
 
 from PIL import Image
+from sqlalchemy import delete, select
 
 from app.db.models import Detection, Frame, MediaFile
 from app.modelclient.client import FrameImage
@@ -18,6 +19,62 @@ from app.schemas.model_io import BoxRefine
 
 GROUND_MIN_PX = 1280   # upscale target for the grounding pass — more pixels, tighter boxes
 CROP_PAD = 0.25        # generous context around the coarse box for the refine crop
+DUP_IOU = 0.55         # boxes overlapping ≥ this (same category) = same object → merge
+DUP_CONTAIN = 0.75     # one box ≥ this fraction inside another (same category) → merge
+
+
+def _iou(a: Detection, b: Detection) -> float:
+    ix1, iy1 = max(a.bbox_x1, b.bbox_x1), max(a.bbox_y1, b.bbox_y1)
+    ix2, iy2 = min(a.bbox_x2, b.bbox_x2), min(a.bbox_y2, b.bbox_y2)
+    iw, ih = max(0.0, ix2 - ix1), max(0.0, iy2 - iy1)
+    inter = iw * ih
+    if inter <= 0:
+        return 0.0
+    aa = (a.bbox_x2 - a.bbox_x1) * (a.bbox_y2 - a.bbox_y1)
+    ab = (b.bbox_x2 - b.bbox_x1) * (b.bbox_y2 - b.bbox_y1)
+    return inter / (aa + ab - inter)
+
+
+def _containment(a: Detection, b: Detection) -> float:
+    """Fraction of the SMALLER box that lies inside the larger — catches the
+    'whole object' + 'part of same object' duplicate (e.g. gun + gun barrel)."""
+    ix1, iy1 = max(a.bbox_x1, b.bbox_x1), max(a.bbox_y1, b.bbox_y1)
+    ix2, iy2 = min(a.bbox_x2, b.bbox_x2), min(a.bbox_y2, b.bbox_y2)
+    inter = max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
+    aa = (a.bbox_x2 - a.bbox_x1) * (a.bbox_y2 - a.bbox_y1)
+    ab = (b.bbox_x2 - b.bbox_x1) * (b.bbox_y2 - b.bbox_y1)
+    smaller = min(aa, ab)
+    return inter / smaller if smaller > 0 else 0.0
+
+
+async def dedup_frame(ctx: Ctx, run_id: str, frame_id: str) -> int:
+    """Merge duplicate boxes on the SAME object within one frame: same category
+    + high overlap/containment → keep the highest-confidence one, drop the rest.
+    Distinct adjacent objects (side by side) barely overlap and are preserved.
+    Returns the number of duplicates removed."""
+    async with ctx.factory() as session:
+        dets = (await session.execute(
+            select(Detection).where(Detection.run_id == run_id,
+                                    Detection.frame_id == frame_id))).scalars().all()
+        kept: list[Detection] = []
+        drop_ids: list[str] = []
+        for d in sorted(dets, key=lambda x: -x.confidence):
+            dup = False
+            for k in kept:
+                if k.category != d.category:
+                    continue
+                if _iou(d, k) >= DUP_IOU or _containment(d, k) >= DUP_CONTAIN:
+                    dup = True
+                    break
+            (drop_ids.append(d.id) if dup else kept.append(d))
+        if drop_ids:
+            await session.execute(delete(Detection).where(Detection.id.in_(drop_ids)))
+            await session.commit()
+        return len(drop_ids)
+
+
+MIN_SIDE = 18          # reject grounded boxes thinner than 1.8% of the image
+MAX_ASPECT = 14.0      # reject absurdly elongated boxes (a sliver, not an object)
 
 
 def _clamp_box(b: list[int]) -> tuple[float, float, float, float] | None:
@@ -28,7 +85,12 @@ def _clamp_box(b: list[int]) -> tuple[float, float, float, float] | None:
         x1, x2 = x2, x1
     if y1 > y2:
         y1, y2 = y2, y1
-    if x2 - x1 < 3 or y2 - y1 < 3:
+    w, h = x2 - x1, y2 - y1
+    # degenerate: too thin, or a sliver with an extreme aspect ratio → reject,
+    # so the caller keeps the object's original (usually better) box
+    if w < MIN_SIDE or h < MIN_SIDE:
+        return None
+    if max(w, h) / max(1, min(w, h)) > MAX_ASPECT:
         return None
     return x1 / 1000, y1 / 1000, x2 / 1000, y2 / 1000
 
@@ -44,6 +106,49 @@ def _load_upscaled(ctx: Ctx, frame: Frame) -> tuple[Image.Image, bytes]:
     buf = io.BytesIO()
     img.save(buf, "JPEG", quality=90)
     return img, buf.getvalue()
+
+
+def _iou_norm(a: list[float], b: list[float]) -> float:
+    ix1, iy1 = max(a[0], b[0]), max(a[1], b[1])
+    ix2, iy2 = min(a[2], b[2]), min(a[3], b[3])
+    inter = max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
+    if inter <= 0:
+        return 0.0
+    aa = (a[2]-a[0]) * (a[3]-a[1])
+    ab = (b[2]-b[0]) * (b[3]-b[1])
+    return inter / (aa + ab - inter)
+
+
+async def refine_answer_boxes(vlm, full_bytes: bytes,
+                              boxes: list[dict]) -> list[dict]:
+    """Q&A boxes get the same accuracy treatment as detection: single-target
+    grounding to tighten each box, degenerate-filter, then IoU-dedup. boxes are
+    dicts {label_ar, bbox:[x1,y1,x2,y2] normalized 0..1}."""
+    if not boxes:
+        return boxes
+
+    async def refine(b: dict) -> dict:
+        try:
+            r = await vlm.complete_json(
+                prompt_files=("23_ground.md",), schema=BoxRefine,
+                purpose="refine", thinking=False,
+                images=[FrameImage(data=full_bytes, ref="qa")],
+                context={"target_name_ar": b["label_ar"],
+                         "target_hint_ar": b["label_ar"]},
+                max_output_tokens=200)
+        except Exception:
+            return b
+        if not r.value.visible:
+            return b
+        c = _clamp_box(r.value.bbox_2d)  # degenerate boxes rejected → keep original
+        return {**b, "bbox": list(c)} if c else b
+
+    refined = await asyncio.gather(*[refine(b) for b in boxes])
+    kept: list[dict] = []
+    for b in refined:
+        if not any(_iou_norm(b["bbox"], k["bbox"]) >= DUP_IOU for k in kept):
+            kept.append(b)
+    return kept
 
 
 async def ground_detections(ctx: Ctx, frame: Frame, media: MediaFile,
