@@ -57,12 +57,23 @@ async def main() -> int:
     ap.add_argument("--votes", type=int, default=1,
                     help="verify each detection N times; keep only if ALL confirm "
                          "(self-consistency → stricter, drops more false positives)")
+    ap.add_argument("--no-drop", action="store_true",
+                    help="never drop a detection; only tighten its box when "
+                         "confirmed (pure box-refine pass — lifts IoU without "
+                         "touching recall/precision counts except via matching)")
+    ap.add_argument("--classes", default="",
+                    help="comma-sep COCO classes to verify (e.g. book,bottle); "
+                         "detections of other classes pass through unchanged "
+                         "(selective verify — spend strictness only where FPs are)")
     ap.add_argument("--concurrency", type=int, default=3)
     args = ap.parse_args()
 
     args.prompt = args.prompt or ("97_crop_classify.md" if args.classify
                                   else "96_crop_verify.md")
     schema = CropVerify if args.classify else BoxRefine
+    verify_classes = ([c.strip() for c in args.classes.split(",") if c.strip()]
+                      if args.classes else None)
+    from eval.score import resolve_class  # noqa: E402
     settings = get_settings()
     if settings.model_mode != "api":
         print("MODEL_MODE must be api")
@@ -122,6 +133,8 @@ async def main() -> int:
             return det  # all transient failures → keep original (don't lose recall)
         # self-consistency: keep only if EVERY successful vote confirms the target
         if not all(k for k, _ in good):
+            if args.no_drop:
+                return det  # keep original box (pure box-refine mode)
             dropped_n += 1
             return None
         boxes = [bb for _, bb in good]
@@ -150,7 +163,16 @@ async def main() -> int:
                              Image.LANCZOS)
         W, H = img.size
         dets = d["pred"]["detections"]
-        kept = await asyncio.gather(*[verify(img, det, W, H) for det in dets])
+
+        async def route(det: dict) -> dict | None:
+            if verify_classes is not None:
+                cls = resolve_class(det.get("name_ar", ""),
+                                    det.get("category", ""), "name")
+                if not cls or cls[0] not in verify_classes:
+                    return det  # class not in the verify set → pass through
+            return await verify(img, det, W, H)
+
+        kept = await asyncio.gather(*[route(det) for det in dets])
         kept = [k for k in kept if k is not None]
         outp.write_text(json.dumps(
             {"pred": {"detections": kept, "scene_summary_ar": ""}, "status": "ok"},
