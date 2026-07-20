@@ -165,3 +165,10 @@ export interface VideoSearchRow {
   results: VideoSearchResults | null; latency_ms: number;
   error: string | null; created_at: string; finished_at: string | null;
 }
+export interface VideoAnswer {
+  answer_ar: string; confidence: number; cannot_determine: boolean;
+  boxes: Array<{ label_ar: string; bbox: [number, number, number, number] }>;
+  timestamp_s: number | null; media_file_id: string | null;
+  media_label: string; thumb_path: string | null; retrieval_score: number;
+  considered: number[]; latency_ms?: number;
+}

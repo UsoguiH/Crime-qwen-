@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock3, Play, RefreshCcw, Search } from "lucide-react";
+import { Clock3, MessageCircleQuestion, Play, RefreshCcw, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import PhotoCanvas from "../../components/PhotoCanvas";
 import {
@@ -7,7 +7,8 @@ import {
   StatusBadge, inputCls,
 } from "../../components/ui";
 import {
-  ApiError, Media, VideoClip, VideoIndexInfo, VideoSearchRow, get, post,
+  ApiError, Media, VideoAnswer, VideoClip, VideoIndexInfo, VideoSearchRow,
+  get, post,
 } from "../../lib/api";
 import { arDigits, fmtDateTime, fmtSeconds } from "../../lib/format";
 
@@ -239,6 +240,88 @@ function Results({ search }: { search: VideoSearchRow }) {
   );
 }
 
+function VideoAskCard({ caseId }: { caseId: string }) {
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [ans, setAns] = useState<VideoAnswer | null>(null);
+  const [playing, setPlaying] = useState<VideoClip | null>(null);
+
+  const ask = async () => {
+    const question = q.trim();
+    if (!question) return;
+    setBusy(true); setError(""); setAns(null);
+    try {
+      setAns(await post<VideoAnswer>(`/cases/${caseId}/video-ask`,
+                                     { question_ar: question }));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "تعذّر الحصول على إجابة");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clip: VideoClip | null =
+    ans && ans.media_file_id && ans.timestamp_s != null ? {
+      media_file_id: ans.media_file_id, media_label: ans.media_label,
+      ts_in: Math.max(0, ans.timestamp_s - 1), ts_out: ans.timestamp_s + 3,
+      ts_best: ans.timestamp_s, retrieval_score: ans.retrieval_score,
+      status: "confirmed", confidence: ans.confidence,
+      label_ar: ans.boxes[0]?.label_ar ?? "", description_ar: ans.answer_ar,
+      bbox: ans.boxes[0]?.bbox ?? null, thumb_path: ans.thumb_path ?? "",
+      model_call_ids: [],
+    } : null;
+
+  return (
+    <Card className="p-5 space-y-4">
+      <h2 className="font-semibold flex items-center gap-2">
+        <MessageCircleQuestion size={16} className="text-primary" />
+        اسأل سؤالاً عن الفيديو
+      </h2>
+      <p className="text-xs text-muted">
+        مثال: «ما لون السيارة؟» أو «صف الشخص الذي يمشي» — يعثر النظام على
+        اللحظة الأنسب ثم يجيب مع صندوق محيط وطابع زمني. الإجابة استرشادية.
+      </p>
+      <div className="flex gap-2 flex-wrap">
+        <input value={q} onChange={(e) => setQ(e.target.value)}
+               onKeyDown={(e) => e.key === "Enter" && void ask()}
+               placeholder="اطرح سؤالك عن محتوى الفيديو…"
+               className={inputCls + " flex-1 min-w-64"} />
+        <Button variant="primary" disabled={busy || !q.trim()} onClick={() => void ask()}>
+          {busy ? <Spinner /> : <MessageCircleQuestion size={15} />} اسأل
+        </Button>
+      </div>
+      {error && <p className="text-sm text-error">{error}</p>}
+      {busy && <p className="text-xs text-muted">يبحث في الفيديو ثم يجيب… قد يستغرق حتى دقيقة.</p>}
+      {ans && (
+        <div className="flex gap-4 items-start pt-2 border-t border-hairline-soft">
+          {clip && (
+            <button onClick={() => setPlaying(clip)} title="تشغيل عند هذه اللحظة"
+                    className="cursor-pointer shrink-0">
+              <ThumbWithBox clip={clip} />
+            </button>
+          )}
+          <div className="flex-1 min-w-0 space-y-2">
+            <p className="text-sm text-body leading-relaxed">{ans.answer_ar}</p>
+            <div className="flex items-center gap-3 flex-wrap text-xs">
+              {ans.cannot_determine && <Badge tone="warning">غير محدد من الفيديو</Badge>}
+              <ConfidenceMeter value={ans.confidence} />
+              {ans.timestamp_s != null && clip && (
+                <button onClick={() => setPlaying(clip)}
+                        className="inline-flex items-center gap-1 text-primary hover:underline cursor-pointer">
+                  <Clock3 size={12} /> عند {fmtSeconds(ans.timestamp_s)}
+                </button>
+              )}
+              {ans.media_label && <span className="text-muted truncate">{ans.media_label}</span>}
+            </div>
+          </div>
+        </div>
+      )}
+      <PlayerDialog clip={playing} onClose={() => setPlaying(null)} />
+    </Card>
+  );
+}
+
 export default function VideoSearchTab({ caseId, media }: {
   caseId: string; media: Media[];
 }) {
@@ -325,6 +408,8 @@ export default function VideoSearchTab({ caseId, media }: {
           ))}
         </div>
       </Card>
+
+      <VideoAskCard caseId={caseId} />
 
       {search && RUNNING.includes(search.status) && <SearchProgress search={search} />}
       {search && search.status === "failed" && (
