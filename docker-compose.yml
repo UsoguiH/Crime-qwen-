@@ -8,6 +8,11 @@ services:
         required: false
     environment:
       DATA_DIR: /data
+      # Model pinned to Qwen3-VL-30B-A3B (instruct + thinking). This overrides
+      # any MODEL_NAME_* in .env — switched from 235B per request; the 30B is
+      # far cheaper/lighter and keeps a real thinking checkpoint.
+      MODEL_NAME_FAST: qwen/qwen3-vl-30b-a3b-instruct
+      MODEL_NAME_THINKING: qwen/qwen3-vl-30b-a3b-thinking
     volumes:
       - athar-data:/data
     ports:

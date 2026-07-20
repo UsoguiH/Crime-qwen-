@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     model_provider: Literal["openrouter", "dashscope", "custom"] = "openrouter"
     openai_base_url: str = ""
     openai_api_key: str = ""
-    model_name_fast: str = "qwen/qwen3-vl-235b-a22b-instruct"
-    model_name_thinking: str = "qwen/qwen3-vl-235b-a22b-thinking"
+    model_name_fast: str = "qwen/qwen3-vl-30b-a3b-instruct"
+    model_name_thinking: str = "qwen/qwen3-vl-30b-a3b-thinking"
     openrouter_data_collection: Literal["allow", "deny"] = "deny"
     openrouter_zdr: bool = False
     # eval 2026-07-19: routing lottery measurably changes detection recall —
