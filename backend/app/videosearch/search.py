@@ -242,7 +242,7 @@ async def _run(settings: Settings, factory, vlm: VLMClient,
         if v["status"] != "rejected":
             by_media.setdefault(v["media_file_id"], []).append(v)
 
-    clips: list[dict] = []
+    groups_all: list[tuple] = []   # (mid, group, representative frame)
     for mid, fs in by_media.items():
         fs.sort(key=lambda f: f["ts"])
         groups: list[list] = []
@@ -253,28 +253,40 @@ async def _run(settings: Settings, factory, vlm: VLMClient,
                 groups.append([f])
         for g in groups:
             rep = max(g, key=lambda f: (f["status"] == "confirmed", f["confidence"]))
-            box = None
-            if rep["raw_bbox"] and rep["_img"]:
-                raw = [{"label_ar": rep["label_ar"] or "الهدف",
-                        "bbox": [min(max(v, 0), 1000) / 1000 for v in rep["raw_bbox"]]}]
-                refined = await refine_answer_boxes(vlm, rep["_img"], raw)
-                if refined:
-                    box = refined[0]["bbox"]
-            span_max = dur.get(mid) or (g[-1]["ts"] + pad)
-            clips.append({
-                "media_file_id": mid, "media_label": rep["media_label"],
-                "ts_in": round(max(0.0, g[0]["ts"] - pad), 2),
-                "ts_out": round(min(span_max, g[-1]["ts"] + pad), 2),
-                "ts_best": rep["ts"],
-                "retrieval_score": round(max(f["retrieval_score"] for f in g), 4),
-                "status": ("confirmed" if any(f["status"] == "confirmed" for f in g)
-                           else "uncertain"),
-                "confidence": rep["confidence"],
-                "label_ar": rep["label_ar"], "description_ar": rep["description_ar"],
-                "bbox": box, "thumb_path": rep["thumb_path"],
-                "frames_matched": len(g),
-                "model_call_ids": [cid for f in g for cid in f["model_call_ids"]],
-            })
+            groups_all.append((mid, g, rep))
+
+    # tighten every clip's box CONCURRENTLY — a sequential refine per clip was
+    # the query bottleneck (one grounding call each × many clips)
+    async def _refine(rep) -> list | None:
+        if not (rep["raw_bbox"] and rep["_img"]):
+            return None
+        raw = [{"label_ar": rep["label_ar"] or "الهدف",
+                "bbox": [min(max(v, 0), 1000) / 1000 for v in rep["raw_bbox"]]}]
+        try:
+            refined = await refine_answer_boxes(vlm, rep["_img"], raw)
+        except Exception:
+            return None
+        return refined[0]["bbox"] if refined else None
+
+    box_by_group = await asyncio.gather(*[_refine(rep) for _, _, rep in groups_all])
+
+    clips: list[dict] = []
+    for (mid, g, rep), box in zip(groups_all, box_by_group):
+        span_max = dur.get(mid) or (g[-1]["ts"] + pad)
+        clips.append({
+            "media_file_id": mid, "media_label": rep["media_label"],
+            "ts_in": round(max(0.0, g[0]["ts"] - pad), 2),
+            "ts_out": round(min(span_max, g[-1]["ts"] + pad), 2),
+            "ts_best": rep["ts"],
+            "retrieval_score": round(max(f["retrieval_score"] for f in g), 4),
+            "status": ("confirmed" if any(f["status"] == "confirmed" for f in g)
+                       else "uncertain"),
+            "confidence": rep["confidence"],
+            "label_ar": rep["label_ar"], "description_ar": rep["description_ar"],
+            "bbox": box, "thumb_path": rep["thumb_path"],
+            "frames_matched": len(g),
+            "model_call_ids": [cid for f in g for cid in f["model_call_ids"]],
+        })
 
     order = {"confirmed": 0, "uncertain": 1}
     clips.sort(key=lambda c: (order[c["status"]], -c["confidence"]))
