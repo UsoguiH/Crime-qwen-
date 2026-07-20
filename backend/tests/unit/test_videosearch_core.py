@@ -5,7 +5,8 @@ from PIL import Image
 
 from app.videosearch.embedder import MockEmbedder
 from app.videosearch.indexer import sidecar_load, sidecar_save
-from app.videosearch.search import cluster_moments, fallback_sensitive, topk_frames
+from app.videosearch.search import (cluster_moments, fallback_sensitive,
+                                     select_candidates, topk_frames)
 
 
 def test_mock_embedder_deterministic_and_normalized():
@@ -70,6 +71,22 @@ def test_cluster_moments_merges_and_caps():
     assert [m["score"] for m in moments] == [0.9, 0.7, 0.3]
     assert len(cluster_moments(cands, gap_s=2.0, budget=2)) == 2
     assert cluster_moments([], 2.0, 5) == []
+
+
+def test_select_candidates_spreads_across_time():
+    # dense candidates 0.5s apart across 10s; must pick spread ≥2s apart, top-score
+    cands = [(t / 2.0, 1.0 - t * 0.01) for t in range(20)]  # ts 0..9.5s
+    picked = select_candidates(cands, min_gap_s=2.0, budget=24)
+    ts = [p[0] for p in picked]
+    assert ts == sorted(ts)                      # chronological
+    gaps = [b - a for a, b in zip(ts, ts[1:])]
+    assert all(g >= 2.0 for g in gaps)           # spacing enforced
+    assert len(ts) >= 4                          # ~5 points across 10s, not 1
+    # budget caps the count
+    assert len(select_candidates(cands, 0.1, 3)) == 3
+    # highest score always kept
+    assert picked[0][0] == 0.0
+    assert select_candidates([], 2.0, 5) == []
 
 
 def test_fallback_sensitive_keywords():

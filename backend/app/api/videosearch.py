@@ -23,6 +23,11 @@ class SearchBody(BaseModel):
     media_ids: list[str] | None = None
 
 
+class AskBody(BaseModel):
+    question_ar: str
+    media_ids: list[str] | None = None
+
+
 @router.post("/media/{media_id}/video-index", status_code=201)
 async def build_video_index(media_id: str,
                             session: AsyncSession = Depends(get_session),
@@ -104,6 +109,37 @@ async def create_video_search(case_id: str, body: SearchBody,
                        object_id=search.id,
                        detail={"case_id": case_id, "query": query[:200]})
     return search_dict(search)
+
+
+@router.post("/cases/{case_id}/video-ask", status_code=201)
+async def video_ask_endpoint(case_id: str, body: AskBody,
+                             session: AsyncSession = Depends(get_session),
+                             settings: Settings = Depends(settings_dep),
+                             user: CurrentUser = Depends(
+                                 require_role("investigator", "reviewer")),
+                             worker=Depends(get_worker),
+                             factory=Depends(get_factory)):
+    if not settings.video_search_enabled:
+        raise HTTPException(status_code=400, detail="البحث في الفيديو معطّل")
+    q = body.question_ar.strip()
+    if not q:
+        raise HTTPException(status_code=400, detail="السؤال فارغ")
+    if len(q) > 500:
+        raise HTTPException(status_code=400, detail="السؤال طويل جداً")
+    case = (await session.execute(
+        select(Case).where(Case.id == case_id))).scalar_one_or_none()
+    if case is None:
+        raise HTTPException(status_code=404, detail="قضية غير موجودة")
+
+    from app.videosearch.qa import video_ask
+    result = await video_ask(settings, factory, worker.vlm, case_id, q, body.media_ids)
+    await audit.append(factory, action="video.ask", actor_user_id=user.id,
+                       actor_label=user.display_name_ar, object_type="case",
+                       object_id=case_id,
+                       detail={"question": q[:200],
+                               "timestamp_s": result.get("timestamp_s"),
+                               "cannot_determine": result.get("cannot_determine")})
+    return result
 
 
 @router.get("/video-searches/{search_id}")

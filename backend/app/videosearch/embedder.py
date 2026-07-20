@@ -68,7 +68,7 @@ class SiglipEmbedder:
                                 return_tensors="pt")
         with torch.no_grad():
             feats = self.model.get_image_features(**inputs)
-        return _l2(feats.float().cpu().numpy())
+        return _l2(_pooled(feats))
 
     def embed_texts(self, texts: list[str]) -> np.ndarray:
         torch = self._torch
@@ -77,7 +77,15 @@ class SiglipEmbedder:
                                 truncation=True, return_tensors="pt")
         with torch.no_grad():
             feats = self.model.get_text_features(**inputs)
-        return _l2(feats.float().cpu().numpy())
+        return _l2(_pooled(feats))
+
+
+def _pooled(feats) -> np.ndarray:
+    """SigLIP2 get_*_features returns a BaseModelOutputWithPooling in current
+    transformers — the aligned embedding is its .pooler_output. Older versions
+    return the tensor directly; handle both."""
+    feats = getattr(feats, "pooler_output", feats)
+    return feats.float().cpu().numpy()
 
 
 def _l2(x: np.ndarray) -> np.ndarray:

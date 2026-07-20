@@ -83,7 +83,9 @@ async def test_video_search_flow(client, logged_in, knife_video):
     assert clip["media_file_id"] == media["id"]
     assert clip["ts_in"] < clip["ts_out"]
     assert clip["label_ar"]
-    assert len(clip["model_call_ids"]) == 2       # double verification logged
+    assert clip["frames_matched"] >= 1            # one or more frames clustered
+    # sensitive query ⇒ two verify calls per frame; ≥1 frame in the clip
+    assert len(clip["model_call_ids"]) >= 2
     b = clip["bbox"]
     assert b and len(b) == 4 and all(0 <= v <= 1 for v in b)
 

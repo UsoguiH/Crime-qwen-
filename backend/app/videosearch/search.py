@@ -59,6 +59,20 @@ def topk_frames(vectors: np.ndarray, timestamps: np.ndarray,
     return [(float(timestamps[i]), float(sims[i])) for i in idx]
 
 
+def select_candidates(candidates: list[tuple[float, float]], min_gap_s: float,
+                      budget: int) -> list[tuple[float, float]]:
+    """Pick the highest-scoring frames spread ≥ min_gap_s apart, so a long
+    continuous scene yields many DISTINCT verification points across time rather
+    than collapsing to one 'best' moment. Recall-first: verify widely."""
+    picked: list[tuple[float, float]] = []
+    for ts, score in sorted(candidates, key=lambda c: -c[1]):
+        if all(abs(ts - pts) >= min_gap_s for pts, _ in picked):
+            picked.append((ts, score))
+            if len(picked) >= budget:
+                break
+    return sorted(picked)
+
+
 def cluster_moments(candidates: list[tuple[float, float]], gap_s: float,
                     budget: int) -> list[dict]:
     """Merge candidate timestamps within gap_s into moments; a moment carries
@@ -127,7 +141,9 @@ async def _run(settings: Settings, factory, vlm: VLMClient,
     media_rows, skipped = await _target_media(settings, factory, search, embedder.name)
     query_vecs = await asyncio.to_thread(embedder.embed_texts, variants)
 
-    moments: list[dict] = []
+    # cast a WIDE net: spread-out candidate FRAMES across each video, not one
+    # collapsed 'best moment' (recall-first — verify many distinct points)
+    candidates: list[tuple] = []   # (media, ts, score)
     frames_indexed = frames_seen = 0
     for media, index in media_rows:
         vectors, timestamps, _meta = await asyncio.to_thread(
@@ -136,57 +152,52 @@ async def _run(settings: Settings, factory, vlm: VLMClient,
         frames_seen += index.frames_seen
         cands = topk_frames(vectors, timestamps, query_vecs,
                             settings.video_search_top_k)
-        for m in cluster_moments(cands, settings.video_search_cluster_gap_s,
-                                 settings.video_search_verify_budget):
-            m["media"] = media
-            moments.append(m)
-    moments.sort(key=lambda m: -m["score"])
-    moments = moments[:settings.video_search_verify_budget]
+        for ts, score in select_candidates(
+                cands, settings.video_search_candidate_min_gap_s,
+                settings.video_search_verify_budget):
+            candidates.append((media, ts, score))
+    candidates.sort(key=lambda c: -c[2])
+    candidates = candidates[:settings.video_search_verify_budget]
     timings["retrieve_ms"] = int((time.monotonic() - t0) * 1000)
 
-    # ── verify (Qwen3-VL, thinking; sensitive ⇒ two independent passes) ───
+    # ── verify each candidate FRAME (fast non-thinking; sensitive ⇒ ×2) ──
     await _set(factory, search.id, status="verifying", progress_current=0,
-               progress_total=len(moments))
+               progress_total=len(candidates))
     t0 = time.monotonic()
     done = 0
     # bound frame extraction + model fan-out (the VLM client has its own cap)
     sem = asyncio.Semaphore(max(4, settings.model_max_concurrency))
 
-    async def verify(i: int, m: dict) -> dict | None:
+    async def verify_frame(i: int, media: MediaFile, ts: float,
+                           score: float) -> dict | None:
         nonlocal done
         async with sem:
-            return await _verify_one(i, m)
-
-    async def _verify_one(i: int, m: dict) -> dict | None:
-        nonlocal done
-        media: MediaFile = m["media"]
-        try:
-            frame_png = await _extract_frame(
-                settings, safe_resolve(settings, media.stored_path),
-                m["ts_best"], search.id, i)
-        except Exception as exc:
-            log.warning("frame extract failed @%ss: %s", m["ts_best"], exc)
-            return None
-        img_bytes, thumb_rel = frame_png
-        context = {"query_ar": search.query_ar, "english_variants": variants,
-                   "timestamp_s": round(m["ts_best"], 1),
-                   "media_label": media.source_label_ar or media.original_filename}
-
-        async def one() -> tuple | None:
             try:
-                r = await vlm.complete_json(
-                    prompt_files=("71_video_verify.md",), schema=VideoVerify,
-                    purpose="video_verify", thinking=True,
-                    images=[FrameImage(data=img_bytes,
-                                       ref=f"{media.id}@{m['ts_best']:.1f}s",
-                                       name_hint=Path(media.original_filename).stem)],
-                    context=context, media_file_id=media.id,
-                    max_output_tokens=2500)
-                return r.value, r.model_call_id
-            except Exception:
+                img_bytes, thumb_rel = await _extract_frame(
+                    settings, safe_resolve(settings, media.stored_path),
+                    ts, search.id, i)
+            except Exception as exc:
+                log.warning("frame extract failed @%ss: %s", ts, exc)
                 return None
+            context = {"query_ar": search.query_ar, "english_variants": variants,
+                       "timestamp_s": round(ts, 1),
+                       "media_label": media.source_label_ar or media.original_filename}
 
-        calls = await asyncio.gather(one(), one()) if sensitive else [await one()]
+            async def one() -> tuple | None:
+                try:
+                    r = await vlm.complete_json(
+                        prompt_files=("71_video_verify.md",), schema=VideoVerify,
+                        purpose="video_verify", thinking=sensitive,
+                        images=[FrameImage(data=img_bytes,
+                                           ref=f"{media.id}@{ts:.1f}s",
+                                           name_hint=Path(media.original_filename).stem)],
+                        context=context, media_file_id=media.id,
+                        max_output_tokens=1500)
+                    return r.value, r.model_call_id
+                except Exception:
+                    return None
+
+            calls = (await asyncio.gather(one(), one())) if sensitive else [await one()]
         answers = [c for c in calls if c is not None]
         done += 1
         await _set(factory, search.id, progress_current=done)
@@ -201,45 +212,76 @@ async def _run(settings: Settings, factory, vlm: VLMClient,
             confidence = min(1.0, primary.confidence + (0.1 if len(verdicts) == 2 else 0.0))
         elif not any(matches):
             status = "rejected"
-            confidence = 1.0 - max(v.confidence for v in verdicts)
-        else:  # disagreement is surfaced, never silently dropped
+            confidence = round(1.0 - max(v.confidence for v in verdicts), 3)
+        else:  # disagreement surfaced, never silently dropped
             status = "uncertain"
             confidence = round(sum(v.confidence for v in verdicts) / len(verdicts) * 0.6, 3)
-
-        box = None
-        if status != "rejected" and primary.bbox_2d and len(primary.bbox_2d) == 4:
-            raw = [{"label_ar": primary.label_ar or "الهدف",
-                    "bbox": [min(max(v, 0), 1000) / 1000 for v in primary.bbox_2d]}]
-            refined = await refine_answer_boxes(vlm, img_bytes, raw)
-            if refined:
-                box = refined[0]["bbox"]
-
-        duration = media.duration_s or m["ts_end"] + settings.video_search_clip_pad_s
         return {
             "media_file_id": media.id,
             "media_label": media.source_label_ar or media.original_filename,
-            "ts_in": round(max(0.0, m["ts_start"] - settings.video_search_clip_pad_s), 2),
-            "ts_out": round(min(duration, m["ts_end"] + settings.video_search_clip_pad_s), 2),
-            "ts_best": round(m["ts_best"], 2),
-            "retrieval_score": round(m["score"], 4),
-            "status": status,
-            "confidence": round(confidence, 3),
-            "label_ar": primary.label_ar,
-            "description_ar": primary.description_ar,
-            "bbox": box,
-            "thumb_path": thumb_rel,
-            "model_call_ids": call_ids,
+            "ts": round(ts, 2), "retrieval_score": round(score, 4),
+            "status": status, "confidence": confidence,
+            "label_ar": primary.label_ar, "description_ar": primary.description_ar,
+            "raw_bbox": (primary.bbox_2d if primary.bbox_2d
+                         and len(primary.bbox_2d) == 4 else None),
+            "thumb_path": thumb_rel, "model_call_ids": call_ids,
+            "_img": img_bytes if status != "rejected" else None,
         }
 
-    results = [r for r in await asyncio.gather(
-        *[verify(i, m) for i, m in enumerate(moments)]) if r is not None]
+    verified = [v for v in await asyncio.gather(
+        *[verify_frame(i, m, ts, sc)
+          for i, (m, ts, sc) in enumerate(candidates)]) if v is not None]
     timings["verify_ms"] = int((time.monotonic() - t0) * 1000)
 
+    # ── cluster surviving frames into clips; refine the box per clip ─────
+    dur = {m.id: (m.duration_s or 0.0) for m, _ in media_rows}
+    pad = settings.video_search_clip_pad_s
+    gap = settings.video_search_cluster_gap_s
+    by_media: dict[str, list] = {}
+    for v in verified:
+        if v["status"] != "rejected":
+            by_media.setdefault(v["media_file_id"], []).append(v)
+
+    clips: list[dict] = []
+    for mid, fs in by_media.items():
+        fs.sort(key=lambda f: f["ts"])
+        groups: list[list] = []
+        for f in fs:
+            if groups and f["ts"] - groups[-1][-1]["ts"] <= gap:
+                groups[-1].append(f)
+            else:
+                groups.append([f])
+        for g in groups:
+            rep = max(g, key=lambda f: (f["status"] == "confirmed", f["confidence"]))
+            box = None
+            if rep["raw_bbox"] and rep["_img"]:
+                raw = [{"label_ar": rep["label_ar"] or "الهدف",
+                        "bbox": [min(max(v, 0), 1000) / 1000 for v in rep["raw_bbox"]]}]
+                refined = await refine_answer_boxes(vlm, rep["_img"], raw)
+                if refined:
+                    box = refined[0]["bbox"]
+            span_max = dur.get(mid) or (g[-1]["ts"] + pad)
+            clips.append({
+                "media_file_id": mid, "media_label": rep["media_label"],
+                "ts_in": round(max(0.0, g[0]["ts"] - pad), 2),
+                "ts_out": round(min(span_max, g[-1]["ts"] + pad), 2),
+                "ts_best": rep["ts"],
+                "retrieval_score": round(max(f["retrieval_score"] for f in g), 4),
+                "status": ("confirmed" if any(f["status"] == "confirmed" for f in g)
+                           else "uncertain"),
+                "confidence": rep["confidence"],
+                "label_ar": rep["label_ar"], "description_ar": rep["description_ar"],
+                "bbox": box, "thumb_path": rep["thumb_path"],
+                "frames_matched": len(g),
+                "model_call_ids": [cid for f in g for cid in f["model_call_ids"]],
+            })
+
     order = {"confirmed": 0, "uncertain": 1}
-    clips = sorted((r for r in results if r["status"] != "rejected"),
-                   key=lambda r: (order[r["status"]], -r["confidence"]))
-    rejected = sorted((r for r in results if r["status"] == "rejected"),
-                      key=lambda r: -r["retrieval_score"])
+    clips.sort(key=lambda c: (order[c["status"]], -c["confidence"]))
+    rejected = sorted(
+        ({k: v for k, v in r.items() if k != "_img"}
+         for r in verified if r["status"] == "rejected"),
+        key=lambda r: -r["retrieval_score"])[:8]
 
     fps = settings.video_index_fps
     coverage = {
@@ -255,10 +297,12 @@ async def _run(settings: Settings, factory, vlm: VLMClient,
             "العثور عند هذه التغطية، لا الجزم بعدم الوجود. كل النتائج "
             "تتطلب تأكيداً بشرياً."),
     }
-    stats = {"candidates": len(moments), "confirmed":
-             sum(1 for c in clips if c["status"] == "confirmed"),
+    stats = {"candidates": len(candidates),
+             "frames_verified": len(verified),
+             "confirmed": sum(1 for c in clips if c["status"] == "confirmed"),
              "uncertain": sum(1 for c in clips if c["status"] == "uncertain"),
-             "rejected": len(rejected), **timings}
+             "rejected": sum(1 for v in verified if v["status"] == "rejected"),
+             **timings}
 
     await _set(factory, search.id, status="done", finished_at=utcnow(),
                latency_ms=int((time.monotonic() - started) * 1000),

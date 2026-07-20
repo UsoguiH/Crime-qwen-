@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     video_index_still_skip_distance: int = 2
     video_search_top_k: int = 60
     video_search_verify_budget: int = 24
+    video_search_candidate_min_gap_s: float = 2.0  # spread verified frames across time
     video_search_cluster_gap_s: float = 3.0
     video_search_clip_pad_s: float = 2.0
 
