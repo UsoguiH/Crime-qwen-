@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ScanSearch } from "lucide-react";
+import { Play, ScanSearch } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import UploadZone from "../../components/UploadZone";
-import { Badge, Card, HashChip, Spinner, inputCls } from "../../components/ui";
+import { Badge, Card, Dialog, HashChip, Spinner, inputCls } from "../../components/ui";
 import { Media, Run, get, patch } from "../../lib/api";
 import { arDigits, fmtBytes, fmtDateTime, fmtSeconds } from "../../lib/format";
 
@@ -42,18 +42,60 @@ const SOURCE_TYPES: Record<string, string> = {
   photo: "صورة فوتوغرافية", other: "مصدر آخر",
 };
 
+function MediaThumb({ m, onPlay }: { m: Media; onPlay: () => void }) {
+  const img = (
+    <img src={`/api/files/thumb/${m.id}`} alt=""
+         className="h-full w-full object-cover"
+         onError={(e) => ((e.target as HTMLImageElement).style.visibility = "hidden")} />
+  );
+  if (m.kind !== "video") {
+    return (
+      <div className="h-20 w-28 shrink-0 overflow-hidden rounded-md border border-hairline bg-canvas-soft">
+        {img}
+      </div>
+    );
+  }
+  return (
+    <button onClick={onPlay} title="تشغيل الفيديو"
+            className="group relative h-20 w-28 shrink-0 overflow-hidden rounded-md border border-hairline bg-canvas-soft cursor-pointer">
+      {img}
+      <span className="absolute inset-0 grid place-items-center bg-black/25 transition-colors group-hover:bg-black/40">
+        <span className="grid h-8 w-8 place-items-center rounded-full bg-primary text-on-primary">
+          <Play size={16} />
+        </span>
+      </span>
+    </button>
+  );
+}
+
 function MediaRow({ m }: { m: Media }) {
   const qc = useQueryClient();
   const [label, setLabel] = useState(m.source_label_ar);
+  const [playing, setPlaying] = useState(false);
   const save = async (fields: Partial<Media>) => {
     await patch(`/media/${m.id}`, fields);
     await qc.invalidateQueries({ queryKey: ["media", m.case_id] });
   };
   return (
     <Card className={`p-4 flex gap-4 ${m.excluded ? "opacity-50" : ""}`}>
-      <img src={`/api/files/thumb/${m.id}`} alt=""
-           className="h-20 w-28 object-cover rounded-md border border-hairline bg-canvas-soft"
-           onError={(e) => ((e.target as HTMLImageElement).style.visibility = "hidden")} />
+      <MediaThumb m={m} onPlay={() => setPlaying(true)} />
+      {m.kind === "video" && (
+        <Dialog open={playing} onClose={() => setPlaying(false)} wide
+                title={m.source_label_ar || m.original_filename}>
+          <video controls autoPlay playsInline
+                 className="w-full rounded-lg bg-black max-h-[70vh]"
+                 src={`/api/files/original/${m.id}`}>
+            متصفحك لا يدعم تشغيل الفيديو.
+          </video>
+          <div className="mt-3 flex flex-wrap gap-x-4 text-xs text-muted">
+            {m.duration_s && <span>المدة: {fmtSeconds(m.duration_s)}</span>}
+            <span>{fmtBytes(m.size_bytes)}</span>
+            <span className="latin" dir="ltr">{m.mime}</span>
+            <a href={`/api/files/original/${m.id}`} target="_blank" rel="noreferrer"
+               className="text-primary hover:underline">فتح في نافذة جديدة</a>
+          </div>
+        </Dialog>
+      )}
       <div className="flex-1 min-w-0 space-y-1.5">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-semibold truncate latin" dir="ltr">
