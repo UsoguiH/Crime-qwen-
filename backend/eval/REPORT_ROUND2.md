@@ -104,6 +104,26 @@ Aggregate over 40 mixed images: mIoU 0.879 / recall 0.767. Small in-app samples
 that hit several hard knife cases score lower (variance) — the 40-image number is
 the reliable estimate.
 
+## Round 3b — visual self-correction (tested, NOT shipped)
+Tried the strongest boxing technique available: draw the candidate box on the
+image, show it back, ask the model to tighten it to the object's true edges
+(prompt 24_box_feedback). Measured on the same 40 real weapon images:
+
+| config | mean IoU | recall |
+|---|---|---|
+| production (ground+dedup, no feedback) | **0.879** | 0.767 |
+| + visual self-correction | 0.857 | 0.791 |
+
+Net wash: recall +2.4 pts but box tightness −2.2 pts (the model sometimes
+over-expands the box on "correction"), at the cost of an extra call per box.
+**Not adopted** — the 0.879 config is better on box accuracy. Honest negative
+result; the technique is kept in the eval harness (`--feedback`) but off in prod.
+
+This also confirms the practical ceiling: with an off-the-shelf VLM, ~0.88 mean
+IoU / ~0.77–0.79 recall on real weapons is about the best this architecture
+reaches. Literal 100% is not attainable without a different class of model
+(dedicated open-vocabulary detector / segmentation), which the spec excludes.
+
 ## Bottom line
 - **Engine accuracy: materially and provably improved** (recall doubled),
   measured on real labeled data, winner shipped to the live web app.
