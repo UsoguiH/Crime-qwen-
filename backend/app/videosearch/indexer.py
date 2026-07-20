@@ -68,7 +68,9 @@ async def build_index(settings: Settings, factory, media_id: str) -> None:
         await _set(factory, index_id, frames_seen=len(frames),
                    progress_total=len(frames))
 
-        embedder = get_embedder(settings)
+        # load OFF the event loop: first use downloads/loads ~1GB of weights,
+        # which would otherwise freeze the whole backend (every request hangs)
+        embedder = await asyncio.to_thread(get_embedder, settings)
         skip_dist = settings.video_index_still_skip_distance
         vectors: list[np.ndarray] = []
         timestamps: list[float] = []

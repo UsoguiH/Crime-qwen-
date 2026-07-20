@@ -121,7 +121,9 @@ async def _run(settings: Settings, factory, vlm: VLMClient,
     # ── retrieve (vector search over ready indexes) ───────────────────────
     await _set(factory, search.id, status="retrieving")
     t0 = time.monotonic()
-    embedder = get_embedder(settings)
+    # load OFF the event loop (see indexer): first-use weight load must not
+    # block the async loop, or every concurrent HTTP request stalls
+    embedder = await asyncio.to_thread(get_embedder, settings)
     media_rows, skipped = await _target_media(settings, factory, search, embedder.name)
     query_vecs = await asyncio.to_thread(embedder.embed_texts, variants)
 
