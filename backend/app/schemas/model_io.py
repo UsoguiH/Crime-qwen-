@@ -86,6 +86,15 @@ class BoxRefine(StrictModel):
     visible: bool
 
 
+class CropVerify(StrictModel):
+    """Classify-then-confirm a candidate crop: the model must NAME what it
+    actually sees before judging whether it is the target — this commitment
+    suppresses the 'yes to any look-alike' bias that inflates false positives."""
+    seen_object_ar: str      # what is actually in the crop (forces identification)
+    is_target: bool          # is it genuinely the target class (not a look-alike)?
+    bbox_2d: list[int] = Field(min_length=4, max_length=4)
+
+
 class GroundedBox(StrictModel):
     label_ar: str
     bbox_2d: list[int] = Field(min_length=4, max_length=4)
