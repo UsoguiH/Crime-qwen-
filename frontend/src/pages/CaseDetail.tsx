@@ -17,9 +17,11 @@ import MediaTab from "./tabs/MediaTab";
 import ReportTab from "./tabs/ReportTab";
 import ReviewTab from "./tabs/ReviewTab";
 import TimelineTab from "./tabs/TimelineTab";
+import VideoSearchTab from "./tabs/VideoSearchTab";
 
 const TABS = [
-  ["overview", "نظرة عامة"], ["media", "الوسائط"], ["timeline", "الجدول الزمني"],
+  ["overview", "نظرة عامة"], ["media", "الوسائط"],
+  ["video-search", "بحث الفيديو"], ["timeline", "الجدول الزمني"],
   ["evidence", "الأدلة"], ["review", "المراجعة"],
   ["report", "التقرير"], ["audit", "التدقيق"],
 ] as const;
@@ -94,6 +96,7 @@ export default function CaseDetail() {
                   }} />
       )}
       {tab === "media" && <MediaTab caseId={caseId} media={media ?? []} />}
+      {tab === "video-search" && <VideoSearchTab caseId={caseId} media={media ?? []} />}
       {tab === "timeline" && <TimelineTab runId={latestRunId} media={media ?? []} />}
       {tab === "evidence" && <EvidenceTab runId={latestRunId} />}
       {tab === "review" && <ReviewTab runId={latestRunId} />}

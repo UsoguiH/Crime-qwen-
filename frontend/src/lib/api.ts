@@ -130,3 +130,38 @@ export interface PhotoQuestion {
   grounded_boxes: Array<{ label_ar: string; bbox: [number, number, number, number] }>;
   thinking_used: boolean; created_at: string;
 }
+export interface VideoIndexInfo {
+  status: string; // none | queued | building | ready | failed
+  id?: string; media_file_id?: string; embedder_name?: string; dim?: number;
+  fps?: number; frames_seen?: number; frames_indexed?: number;
+  progress_current?: number; progress_total?: number;
+  duration_s?: number | null; error?: string | null; built_at?: string | null;
+}
+export interface VideoClip {
+  media_file_id: string; media_label: string;
+  ts_in: number; ts_out: number; ts_best: number; retrieval_score: number;
+  status: "confirmed" | "uncertain" | "rejected"; confidence: number;
+  label_ar: string; description_ar: string;
+  bbox: [number, number, number, number] | null;
+  thumb_path: string; model_call_ids: string[];
+}
+export interface VideoSearchResults {
+  clips: VideoClip[]; rejected: VideoClip[];
+  coverage: {
+    fps: number; frames_seen: number; frames_indexed: number;
+    media_searched: number;
+    skipped_media: Array<{ media_file_id: string; label: string; reason: string }>;
+    statement_ar: string;
+  };
+  stats: {
+    candidates: number; confirmed: number; uncertain: number; rejected: number;
+    translate_ms?: number; retrieve_ms?: number; verify_ms?: number;
+  };
+}
+export interface VideoSearchRow {
+  id: string; case_id: string; query_ar: string; status: string;
+  sensitive: boolean; progress_current: number; progress_total: number;
+  query_variants: string[]; media_ids: string[];
+  results: VideoSearchResults | null; latency_ms: number;
+  error: string | null; created_at: string; finished_at: string | null;
+}

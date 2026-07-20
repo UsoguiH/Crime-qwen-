@@ -30,6 +30,7 @@ FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
 TEMPERATURE_BY_PURPOSE = {
     "triage": 0.1, "detect": 0.1, "aggregate": 0.1,
     "compare": 0.2, "narrative": 0.4, "refine": 0.0, "qa": 0.0,
+    "video_verify": 0.0, "translate": 0.0,
 }
 
 

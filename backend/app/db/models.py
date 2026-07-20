@@ -115,7 +115,8 @@ class AnalysisRun(Base):
 class Job(Base):
     __tablename__ = "jobs"
     id: Mapped[str] = pk()
-    kind: Mapped[str] = mapped_column(String(30))  # run_pipeline|render_report|rebuild_timeline
+    kind: Mapped[str] = mapped_column(String(30))
+    # run_pipeline|render_report|rebuild_timeline|index_video|video_search
     run_id: Mapped[str | None] = mapped_column(ForeignKey("analysis_runs.id"), index=True)
     payload_json: Mapped[dict | None] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
@@ -353,6 +354,52 @@ class PhotoQuestion(Base):
     model_call_id: Mapped[str | None] = mapped_column(String(32))
     asked_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = ts()
+
+
+class VideoIndex(Base):
+    """Retrieval index for one video: frames sampled at a fixed rate, embedded
+    locally, vectors stored in an .npz sidecar under derived/. One per media."""
+    __tablename__ = "video_indexes"
+    id: Mapped[str] = pk()
+    media_file_id: Mapped[str] = mapped_column(ForeignKey("media_files.id"), unique=True)
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id"), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
+    # queued|building|ready|failed
+    embedder_name: Mapped[str] = mapped_column(String(200), default="")
+    dim: Mapped[int] = mapped_column(Integer, default=0)
+    fps: Mapped[float] = mapped_column(Float, default=1.0)
+    frames_seen: Mapped[int] = mapped_column(Integer, default=0)      # decoded
+    frames_indexed: Mapped[int] = mapped_column(Integer, default=0)   # kept after still-skip
+    progress_current: Mapped[int] = mapped_column(Integer, default=0)
+    progress_total: Mapped[int] = mapped_column(Integer, default=0)
+    sidecar_path: Mapped[str] = mapped_column(String(500), default="")
+    duration_s: Mapped[float | None] = mapped_column(Float)
+    params_json: Mapped[dict | None] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = ts()
+    built_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class VideoSearch(Base):
+    """One natural-language search over a case's indexed videos: retrieve →
+    cluster → VLM-verify. Results (clips + honest coverage) stored as JSON."""
+    __tablename__ = "video_searches"
+    id: Mapped[str] = pk()
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id"), index=True)
+    query_ar: Mapped[str] = mapped_column(Text)
+    query_variants_json: Mapped[dict | None] = mapped_column(JSON)
+    media_ids_json: Mapped[list | None] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
+    # queued|translating|retrieving|verifying|done|failed
+    progress_current: Mapped[int] = mapped_column(Integer, default=0)
+    progress_total: Mapped[int] = mapped_column(Integer, default=0)
+    sensitive: Mapped[bool] = mapped_column(Boolean, default=False)
+    results_json: Mapped[dict | None] = mapped_column(JSON)
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = ts()
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AppSetting(Base):

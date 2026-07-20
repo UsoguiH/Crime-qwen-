@@ -100,6 +100,15 @@ def _default(purpose: str, name_hints: list[str], context: dict | None) -> dict:
                              "فعّل الوضع السحابي أو المحلي لطرح الأسئلة.",
                 "confidence": 0.0, "cannot_determine": True,
                 "grounded_boxes": []}
+    if purpose == "translate":
+        query = (context or {}).get("query_ar") or "query"
+        # recall-first default: unknown query treated as sensitive → double verify
+        return {"english_variants": [query], "sensitive": True}
+    if purpose == "video_verify":
+        return {"match": False, "confidence": 0.0, "label_ar": "",
+                "description_ar": "(وضع المحاكاة) لا يمكن التحقق من الإطار "
+                                  "بدون نموذج فعلي.",
+                "bbox_2d": None}
     if purpose == "narrative":
         return {"content_ar": "(وضع المحاكاة) تعذّر إنشاء السرد التحليلي بالنموذج "
                               "اللغوي؛ تُعرض البيانات المهيكلة في جداول هذا التقرير، "

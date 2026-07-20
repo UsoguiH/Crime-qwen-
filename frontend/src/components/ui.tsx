@@ -48,12 +48,16 @@ export function Badge({ tone = "neutral", children }: {
 
 export function StatusBadge({ status }: { status: string }) {
   const tone =
-    status === "complete" || status === "completed" || status === "confirmed"
+    status === "complete" || status === "completed" || status === "confirmed" ||
+    status === "ready" || status === "done"
       ? "success"
       : status === "failed" || status === "rejected" || status === "cancelled"
         ? "error"
         : status === "analyzing" || status === "running" || status === "paused" ||
-            status === "pending" || status === "completed_with_errors"
+            status === "pending" || status === "completed_with_errors" ||
+            status === "uncertain" || status === "building" ||
+            status === "translating" || status === "retrieving" ||
+            status === "verifying"
           ? "warning"
           : "neutral";
   return <Badge tone={tone as any}>{STATUS_AR[status] ?? status}</Badge>;

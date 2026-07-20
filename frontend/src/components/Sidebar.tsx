@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   FilePlus2, FileText, FolderKanban, Images, LayoutDashboard,
   ListChecks, LogOut, Menu, Moon, ScrollText, Search, Settings, ShieldCheck,
-  Clock3, Sun, X,
+  Clock3, Sun, Video, X,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useMatch, useSearchParams } from "react-router-dom";
@@ -14,6 +14,7 @@ import { Badge } from "./ui";
 const CASE_TABS: Array<{ key: string; label: string; icon: ReactNode }> = [
   { key: "overview", label: "نظرة عامة", icon: <LayoutDashboard size={15} /> },
   { key: "media", label: "الوسائط", icon: <Images size={15} /> },
+  { key: "video-search", label: "بحث الفيديو", icon: <Video size={15} /> },
   { key: "timeline", label: "الجدول الزمني", icon: <Clock3 size={15} /> },
   { key: "evidence", label: "الأدلة", icon: <Search size={15} /> },
   { key: "review", label: "المراجعة", icon: <ShieldCheck size={15} /> },

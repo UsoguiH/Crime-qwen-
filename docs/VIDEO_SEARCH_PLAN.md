@@ -188,6 +188,22 @@ clean and air-gappable. Revisit YOLO only if we license it.
 - **V3 — scale + air-gap:** HNSW for many-camera archives; package SigLIP2 +
   detector to run locally (GPU profile), so indexing never leaves the building.
 
+## V0 STATUS (2026-07-20) — IMPLEMENTED
+Shipped on branch `feature/video-search`, all 33 tests green:
+- Index: `index_video` job (own worker lane so long builds never block analysis)
+  — ffmpeg 1 fps → phash still-skip → SigLIP2-base CPU embeddings (mock embedder
+  in mock mode) → fp16 `.npz` sidecar per video; auto-queued at upload.
+- Query: `video_search` job — Qwen fast-call translates/paraphrases the Arabic
+  query (+ sensitivity flag) → numpy cosine top-K (FAISS unnecessary ≤10⁵
+  frames) → moment clustering → Qwen3-VL thinking verify per candidate
+  (double-ask on sensitive queries; disagreement surfaced as «uncertain») →
+  box re-grounded via the existing grounding path → clips + honest coverage
+  + full audit. UI: «بحث الفيديو» tab (query box, index chips, clip cards,
+  player seek, rejected list collapsed).
+- Measurement harness for real footage: `backend/scripts/video_search_eval.py`
+  (recall vs hand-labelled timestamps + per-phase latency). Real-CCTV numbers
+  pending the user's footage.
+
 ## Verification (how we prove the target)
 Take one real 1–3 h CCTV video (or concatenate the UGR weapon clips + neutral
 footage with known weapon timestamps), index it, run 5 queries

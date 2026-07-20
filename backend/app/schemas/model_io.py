@@ -98,6 +98,23 @@ class PhotoAnswer(StrictModel):
     grounded_boxes: list[GroundedBox]
 
 
+class QueryTranslation(StrictModel):
+    """Arabic search query → English retrieval variants for the CLIP-family
+    text encoder + a sensitivity flag (weapons/violence ⇒ double verification)."""
+    english_variants: list[str]
+    sensitive: bool
+
+
+class VideoVerify(StrictModel):
+    """Verdict on one candidate CCTV frame against the search query.
+    bbox_2d is the single most relevant object (relative 0–1000) or null."""
+    match: bool
+    confidence: float = Field(ge=0, le=1)
+    label_ar: str
+    description_ar: str
+    bbox_2d: list[int] | None
+
+
 _ALLOWED_KEYS = {
     "type", "properties", "required", "additionalProperties", "items",
     "enum", "anyOf", "$defs", "$ref", "description",

@@ -11,9 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.core import make_id
-from app.deps import (CurrentUser, get_factory, get_current_user, get_session,
-                      require_role, settings_dep)
-from app.db.models import Case, Frame, MediaFile
+from app.deps import (CurrentUser, get_factory, get_current_user,
+                      get_index_worker, get_session, require_role, settings_dep)
+from app.db.models import Case, Frame, MediaFile, VideoIndex
+from app.pipeline.worker import enqueue
 from app.services import audit
 from app.services.media_meta import image_meta, probe_video
 from app.services.storage import store_original
@@ -56,7 +57,8 @@ async def upload_media(case_id: str, file: UploadFile = File(...),
                        session: AsyncSession = Depends(get_session),
                        settings: Settings = Depends(settings_dep),
                        user: CurrentUser = Depends(require_role("investigator")),
-                       factory=Depends(get_factory)):
+                       factory=Depends(get_factory),
+                       index_worker=Depends(get_index_worker)):
     case = (await session.execute(
         select(Case).where(Case.id == case_id))).scalar_one_or_none()
     if case is None:
@@ -147,6 +149,14 @@ async def upload_media(case_id: str, file: UploadFile = File(...),
             await make_video_thumb(abs_path, thumb)
     except Exception:
         pass
+
+    # index at upload (background) so video-search queries stay fast
+    if (kind == "video" and settings.video_search_enabled
+            and settings.video_index_on_upload):
+        session.add(VideoIndex(media_file_id=media.id, case_id=case_id))
+        await enqueue(session, "index_video", payload={"media_id": media.id})
+        await session.commit()
+        index_worker.notify()
 
     await audit.append(factory, action="media.upload", actor_user_id=user.id,
                        actor_label=user.display_name_ar, object_type="media",

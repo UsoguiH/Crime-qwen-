@@ -22,9 +22,14 @@ WORKDIR /app
 COPY pyproject.toml ./
 RUN uv pip install --system --no-cache -r pyproject.toml --extra dev
 
+# video-search embedder (SigLIP2): CPU-only torch wheel — no CUDA payload
+RUN uv pip install --system --no-cache torch --index-url https://download.pytorch.org/whl/cpu \
+ && uv pip install --system --no-cache "transformers>=4.53" "safetensors>=0.4"
+
 COPY . .
 
 # run from /app directly (no site-packages copy → no stale-shadow hazard)
-ENV PYTHONUNBUFFERED=1 DATA_DIR=/data PYTHONPATH=/app
+# HF_HOME inside the data volume: embedder weights download once, then persist
+ENV PYTHONUNBUFFERED=1 DATA_DIR=/data PYTHONPATH=/app HF_HOME=/data/hf-cache
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

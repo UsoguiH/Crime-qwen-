@@ -51,6 +51,20 @@ class Settings(BaseSettings):
     # 3b validates today; 3u blocked by WeasyPrint #2841 (Arabic ToUnicode CMap)
     report_pdf_variant: str = "pdf/a-3b"
 
+    # video search (index-once → retrieve → verify; see docs/VIDEO_SEARCH_PLAN.md)
+    video_search_enabled: bool = True
+    video_index_on_upload: bool = True
+    embedder_mode: Literal["auto", "real", "mock"] = "auto"  # auto: mock iff MODEL_MODE=mock
+    embedder_model: str = "google/siglip2-base-patch16-224"
+    video_index_fps: float = 1.0
+    video_index_max_side: int = 448
+    # recall-first: skip only near-identical stills (s1 keyframe dedup uses 6)
+    video_index_still_skip_distance: int = 2
+    video_search_top_k: int = 60
+    video_search_verify_budget: int = 24
+    video_search_cluster_gap_s: float = 3.0
+    video_search_clip_pad_s: float = 2.0
+
     # app
     secret_key: str = "dev-insecure-secret-change-me"
     app_env: Literal["dev", "prod"] = "dev"

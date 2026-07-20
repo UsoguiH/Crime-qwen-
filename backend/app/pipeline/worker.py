@@ -43,11 +43,17 @@ async def enqueue(session, kind: str, run_id: str | None = None,
     return job
 
 
+MAIN_KINDS = ("run_pipeline", "render_report", "rebuild_timeline", "video_search")
+INDEX_KINDS = ("index_video",)  # long CPU builds get their own worker lane
+
+
 class Worker:
-    def __init__(self, settings: Settings, factory: async_sessionmaker, vlm: VLMClient):
+    def __init__(self, settings: Settings, factory: async_sessionmaker,
+                 vlm: VLMClient, kinds: tuple[str, ...] = MAIN_KINDS):
         self.settings = settings
         self.factory = factory
         self.vlm = vlm
+        self.kinds = kinds
         self._task: asyncio.Task | None = None
         self._wake = asyncio.Event()
         self._stopping = False
@@ -57,7 +63,8 @@ class Worker:
 
     async def start(self) -> None:
         await self._requeue_stale()
-        self._task = asyncio.create_task(self._loop(), name="athar-worker")
+        self._task = asyncio.create_task(
+            self._loop(), name=f"athar-worker-{self.kinds[0]}")
 
     async def stop(self) -> None:
         self._stopping = True
@@ -72,7 +79,8 @@ class Worker:
     async def _requeue_stale(self) -> None:
         async with self.factory() as session:
             await session.execute(
-                update(Job).where(Job.status == "running").values(status="queued"))
+                update(Job).where(Job.status == "running",
+                                  Job.kind.in_(self.kinds)).values(status="queued"))
             await session.commit()
 
     async def _loop(self) -> None:
@@ -103,7 +111,7 @@ class Worker:
     async def _claim(self) -> Job | None:
         async with self.factory() as session:
             job = (await session.execute(
-                select(Job).where(Job.status == "queued")
+                select(Job).where(Job.status == "queued", Job.kind.in_(self.kinds))
                 .order_by(Job.created_at.asc()).limit(1))).scalar_one_or_none()
             if job is None:
                 return None
@@ -136,6 +144,14 @@ class Worker:
             await self._render_report(job)
         elif job.kind == "rebuild_timeline":
             await self._rebuild_timeline(job)
+        elif job.kind == "index_video":
+            from app.videosearch.indexer import build_index
+            await build_index(self.settings, self.factory,
+                              (job.payload_json or {})["media_id"])
+        elif job.kind == "video_search":
+            from app.videosearch.search import run_search
+            await run_search(self.settings, self.factory, self.vlm,
+                             (job.payload_json or {})["search_id"])
         else:
             raise ValueError(f"unknown job kind {job.kind}")
 

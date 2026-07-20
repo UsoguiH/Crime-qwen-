@@ -83,6 +83,13 @@ export const STATUS_AR: Record<string, string> = {
   confirmed: "مؤكد",
   rejected: "مرفوض",
   edited: "معدّل ومعتمد",
+  uncertain: "غير مؤكد — للمراجعة",
+  ready: "جاهز",
+  building: "قيد الفهرسة",
+  translating: "تهيئة الاستعلام",
+  retrieving: "استرجاع المرشحات",
+  verifying: "التحقق بالنموذج",
+  done: "اكتمل",
 };
 
 export const ROLE_AR: Record<string, string> = {

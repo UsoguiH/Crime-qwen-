@@ -56,6 +56,10 @@ def get_worker(request: Request):
     return request.app.state.worker
 
 
+def get_index_worker(request: Request):
+    return request.app.state.index_worker
+
+
 def get_vlm(request: Request):
     return request.app.state.vlm
 

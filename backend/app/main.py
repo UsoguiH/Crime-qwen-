@@ -9,7 +9,7 @@ from app.config import get_settings
 from app.db import engine as db_engine
 from app.db.models import Base
 from app.modelclient.client import VLMClient
-from app.pipeline.worker import Worker
+from app.pipeline.worker import INDEX_KINDS, Worker
 
 
 def create_app() -> FastAPI:
@@ -27,20 +27,26 @@ def create_app() -> FastAPI:
             await seed_users(session)
         vlm = VLMClient(settings, factory)
         worker = Worker(settings, factory, vlm)
+        # separate lane so an hours-long CPU index build never blocks analysis
+        index_worker = Worker(settings, factory, vlm, kinds=INDEX_KINDS)
         app.state.vlm = vlm
         app.state.worker = worker
+        app.state.index_worker = index_worker
         await worker.start()
+        await index_worker.start()
         yield
         await worker.stop()
+        await index_worker.stop()
         await db_engine.dispose_engine()
 
     app = FastAPI(title="أثر — Athar Crime Scene Analysis", lifespan=lifespan)
 
     from app.api import (admin, audit_api, auth, cases, files, media, photo_qa,
-                         reports, results, review, runs)
+                         reports, results, review, runs, videosearch)
     for router in (auth.router, cases.router, media.router, runs.router,
                    results.router, review.router, reports.router, files.router,
-                   audit_api.router, admin.router, photo_qa.router):
+                   audit_api.router, admin.router, photo_qa.router,
+                   videosearch.router):
         app.include_router(router, prefix="/api")
 
     @app.get("/api/health")

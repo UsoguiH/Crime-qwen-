@@ -4,6 +4,8 @@
 
 Court-oriented crime-scene evidence analysis for Saudi Arabia. Investigators upload photos and videos; **Qwen3-VL** analyzes them; the system produces an evidence **timeline**, an **annotated evidence gallery**, and a full analytical report in **legal Modern Standard Arabic**, exported as **PDF/A** and **DOCX**, with a SHA-256 **chain of custody** and a tamper-evident, hash-chained **audit log**. The entire UI is Arabic, RTL.
 
+**Natural-language video search** (بحث الفيديو): videos are indexed at upload (SigLIP2 frame embeddings, local CPU — imagery never leaves the machine for indexing); an Arabic query retrieves candidate moments by vector search, Qwen3-VL verifies each candidate (twice for weapon/violence queries — disagreement is surfaced as «uncertain», never dropped), and results return as timestamped clips with a bounding box, an Arabic description, and an honest coverage statement. Design + method ladder: `docs/VIDEO_SEARCH_PLAN.md`, `docs/VIDEO_SEARCH_METHODS_LADDER.md`.
+
 **العربية: [README.ar.md](README.ar.md)**
 
 ---
@@ -28,6 +30,8 @@ To use the real model, `cp .env.example .env` and set:
 | `OPENAI_API_KEY` | OpenRouter key (default provider) |
 | `MODEL_NAME_FAST` / `MODEL_NAME_THINKING` | instruct slug for triage/detection · thinking slug for aggregation/comparison/narratives |
 | `OPENROUTER_DATA_COLLECTION` / `OPENROUTER_ZDR` | privacy routing — crime-scene imagery should not be retained by inference providers |
+| `EMBEDDER_MODE` / `EMBEDDER_MODEL` | video-search index: `auto` (mock iff `MODEL_MODE=mock`) · SigLIP2 model id; weights cache in the data volume (`HF_HOME`) |
+| `VIDEO_INDEX_ON_UPLOAD` / `VIDEO_INDEX_FPS` | build the search index automatically at upload (default) at N frames/second (default 1) |
 
 > **Data sovereignty:** `MODEL_MODE=api` sends scene imagery to a cloud provider. For real casework use `MODEL_MODE=local` (fully air-gapped vLLM) — that is what the GPU compose profile is for.
 
