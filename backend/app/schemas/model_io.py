@@ -95,6 +95,13 @@ class CropVerify(StrictModel):
     bbox_2d: list[int] = Field(min_length=4, max_length=4)
 
 
+class MarkerRead(StrictModel):
+    """Read an evidence-marker number off a crop: is this actually a numbered
+    scene marker, and what number is printed on it (pixels, not the claim)."""
+    is_marker: bool
+    marker_number: str       # digits as actually visible on the marker, "" if none
+
+
 class GroundedBox(StrictModel):
     label_ar: str
     bbox_2d: list[int] = Field(min_length=4, max_length=4)

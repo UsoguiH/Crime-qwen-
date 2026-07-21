@@ -18,9 +18,31 @@ from app.pipeline.ctx import Ctx
 from app.schemas.model_io import BoxRefine
 
 GROUND_MIN_PX = 1280   # upscale target for the grounding pass — more pixels, tighter boxes
-CROP_PAD = 0.25        # generous context around the coarse box for the refine crop
+GROUND_CONCURRENCY = 12  # small non-thinking calls; wall-clock ∝ 1/concurrency
 DUP_IOU = 0.55         # boxes overlapping ≥ this (same category) = same object → merge
 DUP_CONTAIN = 0.75     # one box ≥ this fraction inside another (same category) → merge
+# Pre-grounding (raw model boxes drift): merge only near-identical boxes, else a
+# sloppy raw box can swallow a DIFFERENT nearby object of the same category
+# (e.g. two adjacent evidence markers) and it vanishes before grounding sees it.
+DUP_IOU_RAW = 0.80
+DUP_CONTAIN_RAW = 0.92
+# Multi-instance evidence: many small distinct items of the same category near
+# each other (individual footprints inside a trail, scattered blood drops, glass
+# shards). Containment-merge would collapse them into one box → IoU rule only.
+SCATTER_CATEGORIES = {"impressions", "biological", "trace"}
+# Boxes this overlapped are the SAME physical object no matter what the two
+# passes read on it (a misread marker digit must not resurrect a duplicate).
+IDENT_IOU = 0.85
+IDENT_CONTAIN = 0.92   # same-category: one box essentially inside the other
+
+_ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+
+
+def _digits(d: Detection) -> str:
+    """Digits mentioned on/about the object (marker numbers etc.), Arabic-Indic
+    normalized. Two numbered objects with different numbers are never duplicates."""
+    txt = f"{d.name_ar or ''} {d.visible_text_ar or ''}".translate(_ARABIC_DIGITS)
+    return "".join(sorted(c for c in txt if c.isdigit()))
 
 
 def _iou(a: Detection, b: Detection) -> float:
@@ -47,23 +69,50 @@ def _containment(a: Detection, b: Detection) -> float:
     return inter / smaller if smaller > 0 else 0.0
 
 
-async def dedup_frame(ctx: Ctx, run_id: str, frame_id: str) -> int:
+async def dedup_frame(ctx: Ctx, run_id: str, frame_id: str, *,
+                      strict: bool = False) -> int:
     """Merge duplicate boxes on the SAME object within one frame: same category
     + high overlap/containment → keep the highest-confidence one, drop the rest.
     Distinct adjacent objects (side by side) barely overlap and are preserved.
-    Returns the number of duplicates removed."""
+    strict=True is the pre-grounding mode: raw boxes are unreliable, so only
+    near-identical boxes merge; the real merge happens post-grounding on
+    accurate coordinates. Returns the number of duplicates removed."""
+    iou_thr = DUP_IOU_RAW if strict else DUP_IOU
+    contain_thr = DUP_CONTAIN_RAW if strict else DUP_CONTAIN
     async with ctx.factory() as session:
         dets = (await session.execute(
             select(Detection).where(Detection.run_id == run_id,
                                     Detection.frame_id == frame_id))).scalars().all()
         kept: list[Detection] = []
         drop_ids: list[str] = []
-        for d in sorted(dets, key=lambda x: -x.confidence):
+        # grounded boxes outrank raw ones: a detection whose grounding failed or
+        # was rejected must never displace the accurately-placed duplicate
+        for d in sorted(dets, key=lambda x: (x.coord_space != "grounded",
+                                             -x.confidence)):
             dup = False
             for k in kept:
+                iou = _iou(d, k)
+                contain = _containment(d, k)
                 if k.category != d.category:
+                    # cross-category identity: same extent, and the loser is an
+                    # ungrounded leftover — double-classification of one object
+                    if iou >= IDENT_IOU and k.coord_space == "grounded" \
+                            and d.coord_space != "grounded":
+                        dup = True
+                        break
                     continue
-                if _iou(d, k) >= DUP_IOU or _containment(d, k) >= DUP_CONTAIN:
+                # identity: same extent = same object, even when the two passes
+                # read different digits on it (marker-number OCR misreads)
+                if iou >= IDENT_IOU or contain >= IDENT_CONTAIN:
+                    dup = True
+                    break
+                # numbered objects (evidence markers) with different numbers
+                # are always distinct — never merge marker 2 into marker 6
+                dk, dd = _digits(k), _digits(d)
+                if dk and dd and dk != dd:
+                    continue
+                contain_ok = d.category not in SCATTER_CATEGORIES
+                if iou >= iou_thr or (contain_ok and contain >= contain_thr):
                     dup = True
                     break
             (drop_ids.append(d.id) if dup else kept.append(d))
@@ -158,7 +207,8 @@ async def ground_detections(ctx: Ctx, frame: Frame, media: MediaFile,
         return 0
     img, full_bytes = _load_upscaled(ctx, frame)
     W, H = img.size
-    sem = asyncio.Semaphore(max(4, ctx.settings.model_max_concurrency))
+    sem = asyncio.Semaphore(max(GROUND_CONCURRENCY,
+                                ctx.settings.model_max_concurrency))
     regrounded = 0
 
     async def ground_one(det: Detection) -> None:
@@ -181,8 +231,21 @@ async def ground_detections(ctx: Ctx, frame: Frame, media: MediaFile,
         coarse = _clamp_box(box.bbox_2d)
         if coarse is None:
             return
-        tight = await _crop_refine(ctx, img, W, H, det, coarse)
-        final = tight or coarse
+        # instance-jump guard: a grounded box with ZERO overlap of the original
+        # detection almost always latched onto a different same-looking object
+        # (e.g. the other footprint across the room). Keep the original box and
+        # flag for review instead of silently moving evidence.
+        orig = [det.bbox_x1, det.bbox_y1, det.bbox_x2, det.bbox_y2]
+        if _iou_norm(list(coarse), orig) < 0.02:
+            async with ctx.factory() as session:
+                row = await session.get(Detection, det.id)
+                if row is not None:
+                    row.needs_human_review = True
+                    await session.commit()
+            return
+        # no separate crop-refine call here: the verify pass (verify_frame)
+        # confirms AND tightens each box on an upscaled crop in a single call
+        final = coarse
         async with ctx.factory() as session:
             row = await session.get(Detection, det.id)
             if row is not None:
@@ -196,42 +259,165 @@ async def ground_detections(ctx: Ctx, frame: Frame, media: MediaFile,
     return regrounded
 
 
-async def _crop_refine(ctx: Ctx, img: Image.Image, W: int, H: int,
-                       det: Detection, coarse: tuple) -> tuple | None:
-    """Crop a padded region around the coarse box, ask for a tight box within
-    the crop, map back to full-image normalized coords. Skips huge boxes
-    (already whole-image) where a crop adds nothing."""
-    x1, y1, x2, y2 = coarse
-    if (x2 - x1) > 0.6 and (y2 - y1) > 0.6:
+VERIFY_PAD = 0.35        # context around the box for the verify crop
+VERIFY_MIN_CROP = 512    # upscale small crops so the judge sees detail
+VERIFY_BIG_FRAC = 0.45   # boxes covering more than this of the image: crop≈image,
+                         # verification is meaningless (tape, whole-scene boxes)
+VERIFY_DROP_CONF = 0.9   # rejected + confidence below this (or ungrounded) → delete;
+                         # rejected but solid → review flag only (protects recall)
+
+
+def _crop_around(img: Image.Image, W: int, H: int, det: Detection,
+                 pad: float) -> tuple[bytes, tuple] | None:
+    x1, y1, x2, y2 = det.bbox_x1, det.bbox_y1, det.bbox_x2, det.bbox_y2
+    px = (x2 - x1) * pad + 0.02
+    py = (y2 - y1) * pad + 0.02
+    cx1, cy1 = max(0.0, x1 - px), max(0.0, y1 - py)
+    cx2, cy2 = min(1.0, x2 + px), min(1.0, y2 + py)
+    crop = img.crop((int(cx1 * W), int(cy1 * H), int(cx2 * W), int(cy2 * H)))
+    if min(crop.size) < 8:
         return None
-    pad_x = (x2 - x1) * CROP_PAD + 0.02
-    pad_y = (y2 - y1) * CROP_PAD + 0.02
-    cx1, cy1 = max(0.0, x1 - pad_x), max(0.0, y1 - pad_y)
-    cx2, cy2 = min(1.0, x2 + pad_x), min(1.0, y2 + pad_y)
-    px1, py1, px2, py2 = int(cx1 * W), int(cy1 * H), int(cx2 * W), int(cy2 * H)
-    if px2 - px1 < 20 or py2 - py1 < 20:
-        return None
-    crop = img.crop((px1, py1, px2, py2))
-    if max(crop.size) < 768:
-        s = 768 / max(crop.size)
+    if max(crop.size) < VERIFY_MIN_CROP:
+        s = VERIFY_MIN_CROP / max(crop.size)
         crop = crop.resize((round(crop.width * s), round(crop.height * s)),
                            Image.LANCZOS)
     buf = io.BytesIO()
     crop.save(buf, "JPEG", quality=92)
-    try:
-        res = await ctx.vlm.complete_json(
-            prompt_files=("22_box_refine.md",), schema=BoxRefine,
-            purpose="refine", thinking=False,
-            images=[FrameImage(data=buf.getvalue(), ref=det.id)],
-            context={"target_name_ar": det.name_ar},
-            run_id=ctx.run_id, stage=3, frame_id=det.frame_id,
-            media_file_id=det.media_file_id, max_output_tokens=256)
-    except Exception:
-        return None
-    inner = _clamp_box(res.value.bbox_2d)
-    if not res.value.visible or inner is None:
-        return None
-    # map crop-relative → full-image normalized
-    cw, ch = cx2 - cx1, cy2 - cy1
-    return (round(cx1 + inner[0] * cw, 4), round(cy1 + inner[1] * ch, 4),
-            round(cx1 + inner[2] * cw, 4), round(cy1 + inner[3] * ch, 4))
+    return buf.getvalue(), (cx1, cy1, cx2, cy2)
+
+
+async def verify_frame(ctx: Ctx, frame: Frame, media: MediaFile) -> tuple:
+    """Crop classify-verify pass over the frame's final detections — the
+    benchmark-winning precision+IoU optimizer (see eval/REPORT_30B.md), now in
+    the live pipeline. For each detection: crop around the box (padded,
+    upscaled) and ask the model to NAME what it sees before judging whether it
+    is the claimed object.
+      - rejected → the detection is a look-alike or a hallucination → deleted
+        (this is what kills 'phone' boxes with no phone and boxes on bare floor)
+      - confirmed → the returned tight box (crop coords) replaces the old box
+    Evidence markers get a dedicated digit-read instead, so a misread marker
+    number (a '6' reported as '1') is corrected from the actual pixels.
+    human_presence rows are never auto-deleted — safety rule: humans are
+    flagged for mandatory review, not silently dropped.
+    Returns (verified, dropped, digit_fixed)."""
+    from app.schemas.model_io import CropVerify, MarkerRead
+
+    async with ctx.factory() as session:
+        dets = (await session.execute(
+            select(Detection).where(Detection.run_id == ctx.run_id,
+                                    Detection.frame_id == frame.id))).scalars().all()
+    if not dets:
+        return 0, 0, 0
+    img, _ = _load_upscaled(ctx, frame)
+    W, H = img.size
+    sem = asyncio.Semaphore(max(GROUND_CONCURRENCY,
+                                ctx.settings.model_max_concurrency))
+    verified = dropped = digit_fixed = 0
+
+    async def _delete(det: Detection) -> None:
+        async with ctx.factory() as session:
+            await session.execute(delete(Detection).where(Detection.id == det.id))
+            await session.commit()
+
+    async def _update_box(det: Detection, reg: tuple, bbox: list[int]) -> None:
+        inner = _clamp_box(bbox)
+        if inner is None:
+            return
+        cx1, cy1, cx2, cy2 = reg
+        cw, ch = cx2 - cx1, cy2 - cy1
+        final = (round(cx1 + inner[0] * cw, 4), round(cy1 + inner[1] * ch, 4),
+                 round(cx1 + inner[2] * cw, 4), round(cy1 + inner[3] * ch, 4))
+        async with ctx.factory() as session:
+            row = await session.get(Detection, det.id)
+            if row is not None:
+                row.bbox_x1, row.bbox_y1, row.bbox_x2, row.bbox_y2 = final
+                row.coord_space = "grounded"
+                await session.commit()
+
+    async def verify_one(det: Detection) -> None:
+        nonlocal verified, dropped, digit_fixed
+        area = (det.bbox_x2 - det.bbox_x1) * (det.bbox_y2 - det.bbox_y1)
+        if area > VERIFY_BIG_FRAC:
+            return
+        made = _crop_around(img, W, H, det, VERIFY_PAD)
+        if made is None:
+            return
+        crop_bytes, reg = made
+
+        # ── evidence markers: read the number off the pixels ──
+        if det.category == "scene_markers" and _digits(det):
+            async with sem:
+                try:
+                    res = await ctx.vlm.complete_json(
+                        prompt_files=("98_read_marker.md",), schema=MarkerRead,
+                        purpose="verify", thinking=False,
+                        images=[FrameImage(data=crop_bytes, ref=det.id)],
+                        context={"target_name_ar": det.name_ar},
+                        run_id=ctx.run_id, stage=3, frame_id=frame.id,
+                        media_file_id=media.id, max_output_tokens=300)
+                except Exception:
+                    return   # transient failure → keep as-is (protect recall)
+            v = res.value
+            if not v.is_marker:
+                if det.coord_space != "grounded":
+                    await _delete(det)        # ghost marker box → remove
+                    dropped += 1
+                else:
+                    async with ctx.factory() as session:
+                        row = await session.get(Detection, det.id)
+                        if row is not None:
+                            row.needs_human_review = True
+                            await session.commit()
+                return
+            read = "".join(c for c in v.marker_number.translate(_ARABIC_DIGITS)
+                           if c.isdigit())
+            if read and read != _digits(det):
+                # correct the misread number everywhere it appears in the text
+                import re
+                async with ctx.factory() as session:
+                    row = await session.get(Detection, det.id)
+                    if row is not None:
+                        row.name_ar = re.sub(r"[0-9٠-٩]+", read, row.name_ar)
+                        row.visible_text_ar = read
+                        await session.commit()
+                digit_fixed += 1
+            verified += 1
+            return
+
+        # ── everything else: classify-then-confirm ──
+        async with sem:
+            try:
+                res = await ctx.vlm.complete_json(
+                    prompt_files=("97_crop_classify.md",), schema=CropVerify,
+                    purpose="verify", thinking=False,
+                    images=[FrameImage(data=crop_bytes, ref=det.id)],
+                    context={"target_name_ar": det.name_ar},
+                    run_id=ctx.run_id, stage=3, frame_id=frame.id,
+                    media_file_id=media.id, max_output_tokens=1500)
+            except Exception:
+                return       # transient failure → keep as-is (protect recall)
+        v = res.value
+        if not v.is_target:
+            # delete only SUSPECT detections (failed/rejected grounding or low
+            # confidence) — that is where hallucinations live. A grounded,
+            # high-confidence detection that fails one crop-verify vote is more
+            # often a hard-to-see real object (thin knife on dark floor) than a
+            # fake → flag for review, never silently delete. human_presence is
+            # never auto-deleted regardless.
+            suspect = (det.coord_space != "grounded"
+                       or det.confidence < VERIFY_DROP_CONF)
+            if det.category != "human_presence" and suspect:
+                await _delete(det)
+                dropped += 1
+                return
+            async with ctx.factory() as session:
+                row = await session.get(Detection, det.id)
+                if row is not None:
+                    row.needs_human_review = True
+                    await session.commit()
+            return
+        await _update_box(det, reg, v.bbox_2d)
+        verified += 1
+
+    await asyncio.gather(*[verify_one(d) for d in dets])
+    return verified, dropped, digit_fixed

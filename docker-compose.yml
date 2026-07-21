@@ -13,6 +13,9 @@ services:
       # far cheaper/lighter and keeps a real thinking checkpoint.
       MODEL_NAME_FAST: qwen/qwen3-vl-30b-a3b-instruct
       MODEL_NAME_THINKING: qwen/qwen3-vl-30b-a3b-thinking
+      # 12 concurrent calls: grounding/verify are many small non-thinking calls;
+      # wall-clock scales ~1/concurrency (10 min -> ~4 min measured 2026-07-21)
+      MODEL_MAX_CONCURRENCY: 12
     volumes:
       - athar-data:/data
     ports:
