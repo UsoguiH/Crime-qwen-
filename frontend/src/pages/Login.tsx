@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Badge, Spinner } from "../components/ui";
+import { runEntrance } from "../lib/anim";
 import { get, User } from "../lib/api";
 import { ROLE_AR } from "../lib/format";
 import { useSession } from "../lib/session";
@@ -10,10 +11,16 @@ export default function Login() {
   const { login } = useSession();
   const navigate = useNavigate();
   const [busy, setBusy] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const { data: users, isLoading } = useQuery({
     queryKey: ["users"],
     queryFn: () => get<User[]>("/auth/users"),
   });
+
+  // the app's first entrance — full template choreography
+  useEffect(() => {
+    if (rootRef.current) runEntrance(rootRef.current);
+  }, []);
 
   const enter = async (u: User) => {
     setBusy(u.id);
@@ -26,16 +33,16 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen grid place-items-center px-4">
+    <div ref={rootRef} className="min-h-screen grid place-items-center px-4">
       <div className="w-full max-w-3xl text-center">
-        <Badge tone="error">سري</Badge>
-        <h1 className="text-5xl mt-6 mb-2 font-normal">أثر</h1>
-        <p className="text-body mb-1">نظام تحليل مسرح الجريمة بمساعدة الذكاء الاصطناعي</p>
-        <p className="text-muted text-sm mb-10">«كل تماسٍ يترك أثراً» — اختر حسابك للدخول</p>
+        <span data-anim="rise" className="inline-block"><Badge tone="error">سري</Badge></span>
+        <h1 data-anim="title" className="text-5xl mt-6 mb-2 font-normal">أثر</h1>
+        <p data-anim="title" className="text-body mb-1">نظام تحليل مسرح الجريمة بمساعدة الذكاء الاصطناعي</p>
+        <p data-anim="title" className="text-muted text-sm mb-10">«كل تماسٍ يترك أثراً» — اختر حسابك للدخول</p>
         {isLoading ? (
           <Spinner />
         ) : (
-          <div className="grid sm:grid-cols-3 gap-4">
+          <div className="anim-list grid sm:grid-cols-3 gap-4">
             {(users ?? []).map((u) => (
               <button key={u.id} onClick={() => void enter(u)}
                       disabled={busy !== null}

@@ -19,7 +19,7 @@ function PhotoChip({ m }: { m: Media }) {
   const latest = data?.[0];
   return (
     <Link to={`/cases/${m.case_id}/photos/${m.id}`}
-          className="inline-flex items-center gap-2 rounded-md bg-primary text-on-primary px-5 h-10 text-xs font-medium hover:bg-primary-active transition-colors">
+          className="btn-pop inline-flex items-center gap-2 rounded-md bg-primary text-on-primary px-5 h-10 text-xs font-medium hover:bg-primary-active">
       <ScanSearch size={16} />
       {latest === undefined && data === undefined ? <Spinner /> :
         !latest ? "تحليل فردي" :
@@ -90,9 +90,11 @@ export default function MediaTab({ caseId, media }: { caseId: string; media: Med
   const qc = useQueryClient();
   return (
     <div className="space-y-4">
-      <UploadZone caseId={caseId}
-                  onUploaded={() => void qc.invalidateQueries({ queryKey: ["media", caseId] })} />
-      <div className="space-y-3">
+      <div data-anim="hero">
+        <UploadZone caseId={caseId}
+                    onUploaded={() => void qc.invalidateQueries({ queryKey: ["media", caseId] })} />
+      </div>
+      <div className="anim-list space-y-3">
         {media.map((m) => <MediaRow key={m.id} m={m} />)}
       </div>
     </div>

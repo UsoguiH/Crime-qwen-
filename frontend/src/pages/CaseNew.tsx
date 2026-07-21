@@ -33,8 +33,8 @@ export default function CaseNew() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-3xl font-normal mb-6">قضية جديدة</h1>
-      <Card className="p-6">
+      <h1 data-anim="title" className="text-3xl font-normal mb-6">قضية جديدة</h1>
+      <Card data-anim="hero" className="p-6">
         <form onSubmit={submit} className="space-y-4">
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="رقم القضية *">

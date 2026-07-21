@@ -3,8 +3,9 @@ import {
   FilePlus2, FileText, FolderKanban, Images, LogOut, Menu, Moon,
   PanelRightClose, PanelRightOpen, Search, Settings, Sun, X,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useMatch, useSearchParams } from "react-router-dom";
+import { runSidebarEntrance } from "../lib/anim";
 import { Case, Entity, Run, get } from "../lib/api";
 import { STATUS_AR, ROLE_AR, arDigits } from "../lib/format";
 import { useSession } from "../lib/session";
@@ -25,6 +26,7 @@ function NavItem({ to, icon, label, active, badge, onClick, collapsed }: {
       to={to}
       onClick={onClick}
       title={collapsed ? label : undefined}
+      data-anim-item
       className={`flex items-center rounded-md text-sm transition-colors border-s-2 ${
         collapsed ? "justify-center py-2.5" : "gap-2.5 px-3 py-2"} ${
         active
@@ -124,7 +126,7 @@ function SidebarBody({ onNavigate, collapsed = false, onToggle }: {
           <>
             <div className="flex items-center justify-between">
               <Link to="/" onClick={onNavigate} className="flex items-baseline gap-2">
-                <span className="text-2xl font-semibold">أثر</span>
+                <span data-anim-logo className="inline-block text-2xl font-semibold">أثر</span>
                 <span className="text-[10px] text-muted">تحليل مسرح الجريمة</span>
               </Link>
               <span className="flex items-center gap-1">
@@ -137,8 +139,8 @@ function SidebarBody({ onNavigate, collapsed = false, onToggle }: {
                 )}
               </span>
             </div>
-            <Link to="/cases/new" onClick={onNavigate}
-                  className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary text-on-primary text-sm font-medium hover:bg-primary-active transition-colors">
+            <Link to="/cases/new" onClick={onNavigate} data-anim-item
+                  className="btn-pop mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary text-on-primary text-sm font-medium hover:bg-primary-active">
               <FilePlus2 size={15} /> قضية جديدة
             </Link>
           </>
@@ -242,17 +244,23 @@ export default function Sidebar() {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem("athar-sidebar") === "collapsed");
+  const asideRef = useRef<HTMLElement>(null);
   const routerLocation = useLocation();
   useEffect(() => setOpen(false), [routerLocation]);
   useEffect(() => {
     document.documentElement.dataset.sidebar = collapsed ? "collapsed" : "";
     localStorage.setItem("athar-sidebar", collapsed ? "collapsed" : "open");
   }, [collapsed]);
+  // template page-load choreography: sidebar slides in once per app load
+  useEffect(() => {
+    if (asideRef.current) runSidebarEntrance(asideRef.current);
+  }, []);
 
   return (
     <>
       {/* desktop */}
-      <aside className="fixed inset-y-0 start-0 z-40 hidden w-[var(--sidebar-w)] border-e border-hairline bg-canvas lg:block transition-[width] duration-200 overflow-hidden">
+      <aside ref={asideRef}
+             className="fixed inset-y-0 start-0 z-40 hidden w-[var(--sidebar-w)] border-e border-hairline bg-canvas lg:block transition-[width] duration-200 overflow-hidden">
         <SidebarBody collapsed={collapsed}
                      onToggle={() => setCollapsed((c) => !c)} />
       </aside>

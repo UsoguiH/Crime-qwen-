@@ -100,12 +100,12 @@ export default function PhotoAnalysis() {
                 className="text-sm text-body hover:text-ink inline-flex items-center gap-1">
             <ArrowRight size={14} /> عودة إلى الوسائط
           </Link>
-          <h1 className="text-2xl font-normal mt-1">تحليل الصورة الفردي</h1>
+          <h1 data-anim="title" className="text-2xl font-normal mt-1">تحليل الصورة الفردي</h1>
           <div className="text-xs text-muted latin" dir="ltr">
             {media?.original_filename}
           </div>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
+        <div data-anim="rise" className="flex items-center gap-3 flex-wrap">
           <label className="text-sm text-body flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={thinking}
                    onChange={(e) => setThinking(e.target.checked)} />
@@ -133,7 +133,7 @@ export default function PhotoAnalysis() {
                     hint="ابدأ التحليل الفردي، أو اسأل سؤالاً مباشراً عن الصورة أدناه" />
       ) : (
         <div className="grid lg:grid-cols-[1.6fr_1fr] gap-5 items-start">
-          <Card className="p-3 lg:sticky lg:top-4">
+          <Card data-anim="hero" className="p-3 lg:sticky lg:top-4">
             <div className="grid place-items-center">
               <PhotoCanvas src={src} boxes={boxes}
                            focus={selected ?? hovered}
@@ -184,7 +184,7 @@ export default function PhotoAnalysis() {
                   <EmptyState title="لم يُرصد دليل ظاهر"
                               hint="جرّب إعادة التحليل مع التفكير العميق، أو اسأل سؤالاً مباشراً" />
                 )}
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="anim-list grid gap-3 sm:grid-cols-2">
                   {dets.map((d, i) => (
                   <Card key={d.id}
                         onClick={() => { setSelected(selected === d.id ? null : d.id);

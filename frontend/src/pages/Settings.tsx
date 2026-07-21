@@ -38,9 +38,9 @@ export default function Settings() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <h1 className="text-3xl font-normal">الإعدادات</h1>
+      <h1 data-anim="title" className="text-3xl font-normal">الإعدادات</h1>
 
-      <Card className="p-6 space-y-3">
+      <Card data-anim="hero" className="p-6 space-y-3">
         <h2 className="font-semibold">النموذج</h2>
         <div className="grid sm:grid-cols-2 gap-3 text-sm">
           <div><span className="text-muted">الوضع: </span>
@@ -73,7 +73,7 @@ export default function Settings() {
         </div>
       </Card>
 
-      <Card className="p-6 space-y-4">
+      <Card data-anim="hero" className="p-6 space-y-4">
         <h2 className="font-semibold">
           معايير التحليل {!isAdmin && <span className="text-xs text-muted">(التعديل للمشرف)</span>}
         </h2>
@@ -123,7 +123,7 @@ export default function Settings() {
         {save.isSuccess && <div className="text-xs text-success">حُفظ الإعداد وسُجّل في التدقيق.</div>}
       </Card>
 
-      <Card className="p-6 text-xs text-muted space-y-1.5">
+      <Card data-anim="hero" className="p-6 text-xs text-muted space-y-1.5">
         <div>تنسيق تصدير PDF: <span className="font-mono">{data.report_pdf_variant}</span> (أرشفة قضائية)</div>
         <div>الملفات الأصلية محفوظة للقراءة فقط، وكل التعليم يتم على نسخ.</div>
         <div>سجل التدقيق مسلسل البصمات — أي تعديل لاحق على قيوده يُكشف عند التحقق.</div>

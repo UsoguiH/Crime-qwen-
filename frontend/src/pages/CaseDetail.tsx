@@ -43,10 +43,10 @@ export default function CaseDetail() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-normal">{caseData.title_ar}</h1>
+            <h1 data-anim="title" className="text-2xl font-normal">{caseData.title_ar}</h1>
             <StatusBadge status={caseData.status} />
           </div>
-          <div className="text-sm text-muted mt-1 flex flex-wrap gap-x-4">
+          <div data-anim="rise" className="text-sm text-muted mt-1 flex flex-wrap gap-x-4">
             <span className="font-mono text-xs bg-strong rounded-full px-2.5 py-0.5">
               {caseData.case_number}
             </span>

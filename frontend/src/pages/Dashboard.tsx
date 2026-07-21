@@ -29,11 +29,11 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-normal">القضايا</h1>
-        <p className="text-muted text-sm mt-1">إدارة قضايا التحليل الجنائي البصري</p>
+        <h1 data-anim="title" className="text-3xl font-normal">القضايا</h1>
+        <p data-anim="rise" className="text-muted text-sm mt-1">إدارة قضايا التحليل الجنائي البصري</p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div data-anim="hero" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Kpi label="إجمالي القضايا" value={all.length} />
         <Kpi label="قيد التحليل" value={active} />
         <Kpi label="بانتظار المراجعة" value={pending} />
@@ -43,6 +43,7 @@ export default function Dashboard() {
       <input
         value={q} onChange={(e) => setQ(e.target.value)}
         placeholder="بحث برقم القضية أو عنوانها…"
+        data-anim="hero"
         className="w-full h-11 rounded-md border border-hairline-strong bg-card px-4 text-sm outline-none focus:border-primary"
       />
 
@@ -51,7 +52,7 @@ export default function Dashboard() {
       ) : all.length === 0 ? (
         <EmptyState title="لا قضايا بعد" hint="ابدأ بإنشاء قضية جديدة ورفع موادها المصورة" />
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="anim-list grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {all.map((c) => (
             <Link key={c.id} to={`/cases/${c.id}`}>
               <Card className="p-5 h-full hover:border-hairline-strong transition-colors">
