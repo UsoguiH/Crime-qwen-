@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Collapsible sidebar: width shared between the fixed aside and the content
+   margin via one variable; toggled by data-sidebar on <html>. */
+:root { --sidebar-w: 16rem; }
+:root[data-sidebar="collapsed"] { --sidebar-w: 4rem; }
+
 /* ─── Design tokens — transferred from DesignMD.txt (Cursor editorial system)
    with the Athar Arabic/RTL extensions documented in frontend/DESIGN.md ─── */
 @theme {

@@ -25,8 +25,8 @@ function Shell() {
   return (
     <div className="min-h-screen">
       <Sidebar />
-      <div className="lg:ms-64 pt-14 lg:pt-0 flex min-h-screen flex-col">
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="lg:ms-[var(--sidebar-w)] pt-14 lg:pt-0 flex min-h-screen flex-col transition-[margin] duration-200">
+        <main className="mx-auto w-full max-w-[1500px] flex-1 px-4 py-8 sm:px-6 lg:px-8">
           <Outlet />
         </main>
         <footer className="border-t border-hairline py-4 text-center text-[11px] text-muted">

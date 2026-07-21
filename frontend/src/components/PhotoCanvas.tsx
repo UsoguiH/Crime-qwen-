@@ -36,10 +36,10 @@ export default function PhotoCanvas({ src, boxes, focus, onHover, onSelect }: {
   }, [src]);
 
   return (
-    <div className="relative inline-block max-w-full" dir="ltr"
+    <div className="relative w-full" dir="ltr"
          onMouseLeave={() => onHover(null)}>
       <img ref={imgRef} src={src} alt=""
-           className="block max-w-full rounded-lg cursor-pointer"
+           className="block w-full rounded-lg cursor-pointer"
            onClick={() => onSelect(null)}
            onLoad={() => imgRef.current &&
              setRect({ w: imgRef.current.clientWidth, h: imgRef.current.clientHeight })} />

@@ -132,15 +132,15 @@ export default function PhotoAnalysis() {
         <EmptyState title="لم تُحلَّل هذه الصورة بعد"
                     hint="ابدأ التحليل الفردي، أو اسأل سؤالاً مباشراً عن الصورة أدناه" />
       ) : (
-        <div className="grid lg:grid-cols-[1.35fr_1fr] gap-5 items-start">
-          <Card className="p-3">
+        <div className="grid lg:grid-cols-[1.6fr_1fr] gap-5 items-start">
+          <Card className="p-3 lg:sticky lg:top-4">
             <div className="grid place-items-center">
               <PhotoCanvas src={src} boxes={boxes}
                            focus={selected ?? hovered}
                            onHover={setHovered}
                            onSelect={setSelected} />
             </div>
-            <div className="mt-2 text-[11px] text-muted">
+            <div className="mt-2 text-[11px] text-muted text-center">
               مرّر أو انقر على دليل — في الصورة أو في البطاقات — لإبرازه وحده.
               {tab === "ask" && answerBoxes.length > 0 &&
                 " الصناديق المتقطّعة تُبرز مواضع إجابة السؤال."}
@@ -150,7 +150,7 @@ export default function PhotoAnalysis() {
           </Card>
 
           <div className="space-y-3">
-            <div className="flex gap-1 border-b border-hairline">
+            <div className="flex gap-1 border-b border-hairline items-center">
               <button onClick={() => setTab("evidence")}
                       className={`px-4 py-2 text-sm border-b-2 -mb-px cursor-pointer ${
                         tab === "evidence" ? "border-primary font-semibold" : "border-transparent text-body"}`}>
@@ -161,6 +161,18 @@ export default function PhotoAnalysis() {
                         tab === "ask" ? "border-primary font-semibold" : "border-transparent text-body"}`}>
                 اسأل عن الصورة
               </button>
+              {tab === "evidence" && (analyses?.length ?? 0) > 1 && (
+                <select
+                  className="ms-auto mb-1 h-8 rounded-md border border-hairline-strong bg-card px-2 text-xs"
+                  value={current.id} onChange={(e) => setRunId(e.target.value)}>
+                  {analyses!.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      تحليل رقم {arDigits(a.run_number)} — {fmtDateTime(a.started_at)}
+                      {" "}({arDigits(a.detections_count ?? 0)} أدلة)
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {tab === "ask" ? (
@@ -168,53 +180,49 @@ export default function PhotoAnalysis() {
                         onBoxes={(b) => { setAnswerBoxes(b); setSelected(null); }} />
             ) : (
               <>
-                {(analyses?.length ?? 0) > 1 && (
-                  <select
-                    className="w-full h-9 rounded-md border border-hairline-strong bg-card px-3 text-xs"
-                    value={current.id} onChange={(e) => setRunId(e.target.value)}>
-                    {analyses!.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        تحليل رقم {arDigits(a.run_number)} — {fmtDateTime(a.started_at)}
-                        {" "}({arDigits(a.detections_count ?? 0)} أدلة)
-                      </option>
-                    ))}
-                  </select>
-                )}
                 {current.status.startsWith("completed") && dets.length === 0 && (
                   <EmptyState title="لم يُرصد دليل ظاهر"
                               hint="جرّب إعادة التحليل مع التفكير العميق، أو اسأل سؤالاً مباشراً" />
                 )}
-                {dets.map((d, i) => (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {dets.map((d, i) => (
                   <Card key={d.id}
                         onClick={() => { setSelected(selected === d.id ? null : d.id);
                                          setTab("evidence"); }}
                         onMouseEnter={() => setHovered(d.id)}
                         onMouseLeave={() => setHovered(null)}
-                        className={`p-4 cursor-pointer transition-colors ${
+                        className={`p-3 cursor-pointer transition-colors h-full flex flex-col ${
                           (selected ?? hovered) === d.id
                             ? "border-hairline-strong bg-canvas-soft" : ""}`}>
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-start gap-2">
                       <SeqBadge seq={i + 1} category={d.category} />
-                      <span className="font-semibold text-sm">{d.name_ar}</span>
+                      <span className="font-semibold text-[13px] leading-snug line-clamp-2 flex-1">
+                        {d.name_ar}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-2">
                       <CategoryBadge category={d.category} />
                       {d.needs_human_review && (
-                        <Badge tone="warning">يتطلب مراجعة بشرية</Badge>
+                        <Badge tone="warning">مراجعة بشرية</Badge>
                       )}
                     </div>
                     <div className="mt-2"><ConfidenceMeter value={d.confidence} /></div>
-                    <p className="text-xs text-body mt-2">{d.description_ar}</p>
-                    {d.location_description_ar && (
-                      <p className="text-[11px] text-muted mt-1">
-                        الموقع: {d.location_description_ar}
-                      </p>
-                    )}
-                    {d.visible_text_ar && (
-                      <p className="text-[11px] text-muted mt-1">
-                        نص ظاهر: {d.visible_text_ar}
-                      </p>
-                    )}
+                    <p className="text-xs text-body mt-2 line-clamp-3">{d.description_ar}</p>
+                    <div className="mt-auto pt-2 space-y-0.5">
+                      {d.visible_text_ar && (
+                        <p className="text-[11px] text-muted line-clamp-1">
+                          نص ظاهر: {d.visible_text_ar}
+                        </p>
+                      )}
+                      {d.location_description_ar && (
+                        <p className="text-[11px] text-muted line-clamp-2">
+                          الموقع: {d.location_description_ar}
+                        </p>
+                      )}
+                    </div>
                   </Card>
                 ))}
+                </div>
               </>
             )}
           </div>
