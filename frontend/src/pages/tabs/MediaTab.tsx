@@ -19,28 +19,22 @@ function PhotoChip({ m }: { m: Media }) {
   const latest = data?.[0];
   return (
     <Link to={`/cases/${m.case_id}/photos/${m.id}`}
-          className="inline-flex items-center gap-1.5 rounded-md border border-hairline-strong bg-card px-3 h-9 text-xs hover:bg-canvas-soft transition-colors">
-      <ScanSearch size={14} className="text-primary" />
+          className="inline-flex items-center gap-2 rounded-md bg-primary text-on-primary px-5 h-10 text-xs font-medium hover:bg-primary-active transition-colors">
+      <ScanSearch size={16} />
       {latest === undefined && data === undefined ? <Spinner /> :
         !latest ? "تحليل فردي" :
         ["queued", "running"].includes(latest.status) ? (
-          <span className="text-warning">قيد التحليل…</span>
+          <span>قيد التحليل…</span>
         ) : latest.status === "failed" ? (
-          <span className="text-error">متعثر — افتح للتفاصيل</span>
+          <span>متعثر — افتح للتفاصيل</span>
         ) : (
           <span>
-            عرض التحليل
-            <span className="text-muted"> ({arDigits(latest.detections_count ?? 0)} أدلة)</span>
+            عرض التحليل ({arDigits(latest.detections_count ?? 0)} أدلة)
           </span>
         )}
     </Link>
   );
 }
-
-const SOURCE_TYPES: Record<string, string> = {
-  cctv: "كاميرا مراقبة", bodycam: "كاميرا جسدية", handheld: "تصوير يدوي",
-  photo: "صورة فوتوغرافية", other: "مصدر آخر",
-};
 
 function MediaRow({ m }: { m: Media }) {
   const qc = useQueryClient();
@@ -70,13 +64,6 @@ function MediaRow({ m }: { m: Media }) {
                  onChange={(e) => setLabel(e.target.value)}
                  onBlur={() => label !== m.source_label_ar && void save({ source_label_ar: label } as any)}
                  className={inputCls + " h-9 max-w-72 text-xs"} />
-          <select value={m.source_type}
-                  onChange={(e) => void save({ source_type: e.target.value } as any)}
-                  className={inputCls + " h-9 w-auto text-xs"}>
-            {Object.entries(SOURCE_TYPES).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
           <label className="text-xs text-body flex items-center gap-1.5 cursor-pointer">
             <input type="checkbox" checked={!m.excluded}
                    onChange={(e) => void save({ excluded: !e.target.checked } as any)} />

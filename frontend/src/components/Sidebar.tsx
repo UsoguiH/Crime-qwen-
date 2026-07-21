@@ -1,8 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  FilePlus2, FileText, FolderKanban, Images, LayoutDashboard,
-  ListChecks, LogOut, Menu, Moon, PanelRightClose, PanelRightOpen,
-  ScrollText, Search, Settings, ShieldCheck, Clock3, Sun, X,
+  FilePlus2, FileText, FolderKanban, Images, LogOut, Menu, Moon,
+  PanelRightClose, PanelRightOpen, Search, Settings, Sun, X,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useMatch, useSearchParams } from "react-router-dom";
@@ -12,13 +11,9 @@ import { useSession } from "../lib/session";
 import { Badge } from "./ui";
 
 const CASE_TABS: Array<{ key: string; label: string; icon: ReactNode }> = [
-  { key: "overview", label: "نظرة عامة", icon: <LayoutDashboard size={15} /> },
   { key: "media", label: "الوسائط", icon: <Images size={15} /> },
-  { key: "timeline", label: "الجدول الزمني", icon: <Clock3 size={15} /> },
   { key: "evidence", label: "الأدلة", icon: <Search size={15} /> },
-  { key: "review", label: "المراجعة", icon: <ShieldCheck size={15} /> },
   { key: "report", label: "التقرير", icon: <FileText size={15} /> },
-  { key: "audit", label: "تدقيق القضية", icon: <ListChecks size={15} /> },
 ];
 
 function NavItem({ to, icon, label, active, badge, onClick, collapsed }: {
@@ -79,7 +74,7 @@ function SidebarBody({ onNavigate, collapsed = false, onToggle }: {
   const caseMatch = useMatch("/cases/:caseId");
   const caseId = caseMatch?.params.caseId;
   const inCase = !!caseId && caseId !== "new";
-  const activeTab = params.get("tab") ?? "overview";
+  const activeTab = params.get("tab") ?? "media";
 
   const { data: caseData } = useQuery({
     queryKey: ["case", caseId],
@@ -155,9 +150,6 @@ function SidebarBody({ onNavigate, collapsed = false, onToggle }: {
         <div className="space-y-0.5">
           <NavItem to="/" icon={<FolderKanban size={15} />} label="القضايا"
                    active={location.pathname === "/"} onClick={onNavigate}
-                   collapsed={collapsed} />
-          <NavItem to="/audit" icon={<ScrollText size={15} />} label="سجل التدقيق"
-                   active={location.pathname === "/audit"} onClick={onNavigate}
                    collapsed={collapsed} />
           <NavItem to="/settings" icon={<Settings size={15} />} label="الإعدادات"
                    active={location.pathname === "/settings"} onClick={onNavigate}

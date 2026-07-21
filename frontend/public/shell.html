@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>المنصة — Platform Shell</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+
+<!--
+  ============================================================
+  SHELL — the container app.
+  ============================================================
+  This page owns three things and nothing else:
+    1. the landing screen with the two entry cards
+    2. routing between views (hash based: #/  #/scene  #/sketch)
+    3. the URL of each app
+
+  Both apps are SEPARATE DEPLOYMENTS. the shell points at them and mounts them in a frame.
+
+    مسرح الجريمة   -> React app        (adel)
+     الرسام الجنائي    -> HTML app (Alwaleed)
+
+  Set the two URLs in CONFIG
+  below and you are done.
+  ============================================================
+-->
+
+<style>
+:root{
+  --bg:#000; --panel:#070709; --panel2:#0a0a0e; --line:#191a20;
+  --ink:#f2f4fb; --muted:#818aa0; --dim:#4a5162;
+  --core:#8b5cf6; --core2:#a78bfa;
+  --scene:#25e0f5;
+  --r:16px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font:15px/1.7 "Tajawal",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Tahoma,Arial}
+body{display:flex;flex-direction:column;min-height:100dvh}
+
+.shellbar{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+  gap:14px;padding:12px 22px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:11px;cursor:pointer;background:0;border:0;
+  color:inherit;font:inherit;padding:0}
+.brand .logo{width:28px;height:28px;border-radius:50%;
+  background:radial-gradient(circle at 38% 32%,#c4b5fd,#7c3aed 55%,#1a1030 100%);
+  box-shadow:0 0 20px #7c3aed88}
+.brand h1{font-size:17px;font-weight:900;margin:0;letter-spacing:-.2px}
+.crumb{color:var(--muted);font-size:12px}
+
+.stage{flex:1 1 auto;min-height:0;overflow:auto}
+.view{display:none;height:100%}
+.view.on{display:block}
+
+.landing{max-width:960px;margin:0 auto;padding:56px 22px 40px}
+.lede{margin-bottom:34px}
+.lede h2{font-size:28px;font-weight:900;margin:0 0 6px}
+.lede p{color:var(--muted);margin:0;max-width:52ch}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
+.card{position:relative;text-align:right;background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);border-radius:var(--r);padding:26px 24px 22px;cursor:pointer;
+  color:inherit;font:inherit;transition:border-color .2s,transform .2s;overflow:hidden}
+.card:hover{transform:translateY(-3px)}
+.card:focus-visible{outline:2px solid var(--core2);outline-offset:3px}
+.card .orb{width:52px;height:52px;border-radius:50%;margin-bottom:18px;
+  background:radial-gradient(circle at 38% 32%,#fff5,transparent 60%),var(--accent);
+  box-shadow:0 0 34px var(--accent)}
+.card h3{font-size:19px;font-weight:900;margin:0 0 6px}
+.card p{color:var(--muted);font-size:13.5px;margin:0;min-height:44px}
+.card .enter{margin-top:16px;display:inline-flex;align-items:center;gap:7px;
+  font-size:13px;font-weight:800;color:var(--accent)}
+.card[data-app=sketch]{--accent:var(--core)}
+.card[data-app=sketch]:hover{border-color:#4c3a86}
+.card[data-app=scene] {--accent:var(--scene)}
+.card[data-app=scene]:hover{border-color:#14636f}
+
+.viewhead{display:flex;align-items:center;gap:12px;padding:14px 22px;border-bottom:1px solid var(--line)}
+.back{background:#0d0d12;border:1px solid var(--line);color:#cdd6ea;font:inherit;font-weight:800;
+  font-size:13px;padding:7px 14px;border-radius:10px;cursor:pointer}
+.back:hover{filter:brightness(1.3)}
+.viewhead h2{font-size:16px;font-weight:900;margin:0}
+
+.host{height:calc(100% - 55px)}
+.host iframe{width:100%;height:100%;border:0;display:block;background:#000}
+.notset{padding:60px 22px;text-align:center;color:var(--muted)}
+.notset code{background:#0d0d12;border:1px solid var(--line);border-radius:6px;
+  padding:2px 7px;font-size:12.5px;direction:ltr;display:inline-block}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+
+<body>
+
+<header class="shellbar">
+  <button class="brand" id="home">
+    <span class="logo"></span>
+    <span><h1>المنصة</h1></span>
+  </button>
+  <div class="crumb" id="crumb"></div>
+</header>
+
+<main class="stage">
+
+  <section class="view on" id="view-home">
+    <div class="landing">
+      <div class="lede">
+        <h2>ابدأ من هنا</h2>
+        <p>اختر مساحة العمل. كل واحدة تطبيق مستقل، والمنصة تنقلك بينهما.</p>
+      </div>
+      <div class="cards">
+
+        <button class="card" data-app="sketch">
+          <span class="orb"></span>
+          <h3>الرسام الجنائي</h3>
+          <p>ارسم الوجه من الوصف وابحث عنه في المعرض.</p>
+          <span class="enter">ادخل ←</span>
+        </button>
+
+        <button class="card" data-app="scene">
+          <span class="orb"></span>
+          <h3>مسرح الجريمة</h3>
+          <p>سجّل المشهد وأدر الأدلة والشهود.</p>
+          <span class="enter">ادخل ←</span>
+        </button>
+
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-scene">
+    <div class="viewhead">
+      <button class="back" data-back>→ رجوع</button>
+      <h2>مسرح الجريمة</h2>
+    </div>
+    <div class="host" id="host-scene"></div>
+  </section>
+
+  <section class="view" id="view-sketch">
+    <div class="viewhead">
+      <button class="back" data-back>→ رجوع</button>
+      <h2>الرسام الجنائي</h2>
+    </div>
+    <div class="host" id="host-sketch"></div>
+  </section>
+
+</main>
+
+<script>
+/* ============================================================
+   CONFIG — the only thing that changes per environment.
+   Each app is served from its own origin or its own folder.
+   ============================================================ */
+const APPS = {
+  scene: {
+    label: "مسرح الجريمة",
+    url:   "/",           /* Athar React app — same origin, served by this nginx */
+    mode:  "embed"        /* "embed" = iframe inside the shell | "redirect" = leave the shell */
+  },
+  sketch: {
+    label: "الرسام الجنائي",
+    url:   "",            /* vanilla HTML app, e.g. "https://sketch.example.com/" */
+    mode:  "embed",
+    allow: "microphone"   /* the sketch app takes voice input */
+  }
+};
+
+/* ============================================================
+   ROUTER
+   Views are sections with id="view-<name>". The hash is the route.
+   ============================================================ */
+const Shell = {
+  get route(){ return location.hash.replace(/^#\/?/, "") || "home"; },
+
+  go(name, params){
+    const q = params ? "?" + new URLSearchParams(params) : "";
+    location.hash = "#/" + name + q;
+  },
+
+  /* Params the shell was routed with, e.g. Shell.params().caseId */
+  params(){
+    return Object.fromEntries(new URLSearchParams(this.route.split("?")[1] || ""));
+  },
+
+  render(){
+    const name = this.route.split("?")[0];
+    const target = document.getElementById("view-" + name) ? name : "home";
+
+    document.querySelectorAll(".view").forEach(section => {
+      section.classList.toggle("on", section.id === "view-" + target);
+    });
+    document.getElementById("crumb").textContent = APPS[target] ? APPS[target].label : "";
+
+    if (APPS[target]) mount(target);
+
+    window.dispatchEvent(new CustomEvent("shell:view", {detail:{view:target, params:this.params()}}));
+  }
+};
+
+/* An app is loaded the first time it is opened, then kept alive. */
+function mount(name){
+  const app  = APPS[name];
+  const host = document.getElementById("host-" + name);
+  if (host.dataset.ready) return;
+
+  if (!app.url){
+    host.innerHTML = '<div class="notset">لم يُضبط العنوان بعد — عدّل <code>APPS.' + name + '.url</code>.</div>';
+    return;
+  }
+  if (app.mode === "redirect"){ location.href = app.url; return; }
+
+  const frame = document.createElement("iframe");
+  frame.src = app.url;
+  if (app.allow) frame.allow = app.allow;
+  host.appendChild(frame);
+  host.dataset.ready = "1";
+}
+
+document.querySelectorAll(".card").forEach(card => {
+  card.addEventListener("click", () => Shell.go(card.dataset.app));
+});
+document.querySelectorAll("[data-back]").forEach(button => {
+  button.addEventListener("click", () => Shell.go("home"));
+});
+document.getElementById("home").addEventListener("click", () => Shell.go("home"));
+
+window.addEventListener("hashchange", () => Shell.render());
+Shell.render();
+
+/* ------------------------------------------------------------
+   HANDOFF
+   From inside an app (React or vanilla), ask the shell to move:
+       parent.postMessage({type:"shell:go", view:"sketch", params:{caseId:"2026-114"}}, "*");
+   And read what you were opened with:
+       new URLSearchParams(location.search).get("caseId")
+   ------------------------------------------------------------ */
+window.addEventListener("message", event => {
+  const data = event.data;
+  if (!data || data.type !== "shell:go" || !APPS[data.view]) return;
+  Shell.go(data.view, data.params);
+});
+
+window.Shell = Shell;
+</script>
+
+</body>
+</html>

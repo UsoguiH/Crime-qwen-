@@ -23,6 +23,9 @@ export default function UploadZone({ caseId, onUploaded }: {
       try {
         const form = new FormData();
         form.append("file", file);
+        // "other"/"cctv" are no longer offered in the UI — pick by file kind
+        form.append("source_type",
+                    file.type.startsWith("video/") ? "handheld" : "photo");
         const media = await postForm<Media>(`/cases/${caseId}/media`, form);
         setItems((prev) => prev.map((it) =>
           it.name === file.name

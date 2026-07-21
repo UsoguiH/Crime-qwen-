@@ -4,7 +4,6 @@ import {
 import Sidebar from "./components/Sidebar";
 import { Spinner } from "./components/ui";
 import { useSession } from "./lib/session";
-import AuditPage from "./pages/AuditPage";
 import CaseDetail from "./pages/CaseDetail";
 import CaseNew from "./pages/CaseNew";
 import Dashboard from "./pages/Dashboard";
@@ -47,7 +46,6 @@ const router = createBrowserRouter([
       { path: "/cases/:caseId", element: <CaseDetail /> },
       { path: "/cases/:caseId/photos/:mediaId", element: <PhotoAnalysis /> },
       { path: "/settings", element: <Settings /> },
-      { path: "/audit", element: <AuditPage /> },
     ],
   },
 ]);
