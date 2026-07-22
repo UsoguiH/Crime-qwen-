@@ -157,9 +157,10 @@ body{display:flex;flex-direction:column;min-height:100dvh}
 const APPS = {
   scene: {
     label: "مسرح الجريمة",
-    url:   "/",           /* Athar React app — same origin, served by this nginx */
+    url:   "/enter",      /* Athar fast entry: auto-login (mock) + straight into
+                             the latest case — one click from shell to case */
     mode:  "redirect"     /* leave the shell: no iframe quirks (PDF export, back
-                             button, shortcuts); Athar's sidebar links back here */
+                             button, shortcuts); Athar links back here */
   },
   sketch: {
     label: "الرسام الجنائي",

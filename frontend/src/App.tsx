@@ -8,6 +8,7 @@ import { runEntrance } from "./lib/anim";
 import { useSession } from "./lib/session";
 import CaseDetail from "./pages/CaseDetail";
 import CaseNew from "./pages/CaseNew";
+import Enter from "./pages/Enter";
 import Login from "./pages/Login";
 import PhotoAnalysis from "./pages/PhotoAnalysis";
 
@@ -48,6 +49,7 @@ function Shell() {
 /* simple-flow: no sidebar, no cases screen — new case → its media → analysis */
 const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
+  { path: "/enter", element: <Enter /> },
   {
     element: <Shell />,
     children: [
