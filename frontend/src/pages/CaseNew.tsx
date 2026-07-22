@@ -1,12 +1,20 @@
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft } from "lucide-react";
 import { useState, type ChangeEvent, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button, Card, Field, inputCls } from "../components/ui";
-import { ApiError, Case, post } from "../lib/api";
+import { ApiError, Case, get, post } from "../lib/api";
 
 export default function CaseNew() {
   const navigate = useNavigate();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // simple-flow has no cases screen — offer a shortcut to the latest case
+  const { data: cases } = useQuery({
+    queryKey: ["cases", ""],
+    queryFn: () => get<Case[]>("/cases"),
+  });
+  const latest = cases?.[0];
   const [form, setForm] = useState({
     case_number: "", title_ar: "", location_ar: "",
     investigator_name_ar: "", notes_ar: "", incident_date_gregorian: "",
@@ -67,13 +75,23 @@ export default function CaseNew() {
           </Field>
           {error && <div className="text-sm text-error">{error}</div>}
           <div className="flex gap-3 justify-end">
-            <Button type="button" onClick={() => navigate(-1)}>إلغاء</Button>
             <Button type="submit" variant="primary" disabled={busy}>
               {busy ? "جارٍ الإنشاء…" : "إنشاء القضية"}
             </Button>
           </div>
         </form>
       </Card>
+
+      {latest && (
+        <Link to={`/cases/${latest.id}`} data-anim="chip"
+              className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-hairline bg-card px-4 py-3 text-sm hover:border-hairline-strong hover:bg-canvas-soft transition-colors">
+          <span className="min-w-0">
+            <span className="block text-xs text-muted">متابعة آخر قضية</span>
+            <span className="block truncate font-semibold">{latest.title_ar}</span>
+          </span>
+          <ArrowLeft size={15} className="shrink-0 text-muted" />
+        </Link>
+      )}
     </div>
   );
 }

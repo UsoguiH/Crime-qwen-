@@ -1,19 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams, useSearchParams } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
 import { Spinner, StatusBadge } from "../components/ui";
 import { Case, Media, Run, get } from "../lib/api";
 import { fmtDate } from "../lib/format";
 import { useRunEvents } from "../lib/sse";
 import MediaTab from "./tabs/MediaTab";
 
-const TABS = [
-  ["media", "الوسائط"],
-] as const;
-
 export default function CaseDetail() {
   const { caseId = "" } = useParams();
-  const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") ?? "media";
 
   const { data: caseData, isLoading } = useQuery({
     queryKey: ["case", caseId],
@@ -40,7 +35,10 @@ export default function CaseDetail() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <Link to="/" className="text-sm text-body hover:text-ink inline-flex items-center gap-1">
+            <ArrowRight size={14} /> قضية جديدة
+          </Link>
+          <div className="flex items-center gap-3 flex-wrap mt-1">
             <h1 data-anim="title" className="text-2xl font-normal">{caseData.title_ar}</h1>
             <StatusBadge status={caseData.status} />
           </div>
@@ -56,22 +54,7 @@ export default function CaseDetail() {
         </div>
       </div>
 
-      {/* mobile-only tab strip — on lg+ the sidebar owns case navigation */}
-      <nav className="flex gap-1 border-b border-hairline overflow-x-auto lg:hidden">
-        {TABS.map(([key, label]) => (
-          <button key={key}
-                  onClick={() => setParams({ tab: key })}
-                  className={`px-4 py-2.5 text-sm whitespace-nowrap cursor-pointer border-b-2 -mb-px transition-colors ${
-                    tab === key
-                      ? "border-primary text-ink font-semibold"
-                      : "border-transparent text-body hover:text-ink"
-                  }`}>
-            {label}
-          </button>
-        ))}
-      </nav>
-
-      {tab === "media" && <MediaTab caseId={caseId} media={media ?? []} />}
+      <MediaTab caseId={caseId} media={media ?? []} />
     </div>
   );
 }
