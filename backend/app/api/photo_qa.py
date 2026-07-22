@@ -130,8 +130,17 @@ async def ask_photo(media_id: str, body: AskBody,
 async def list_questions(media_id: str,
                          session: AsyncSession = Depends(get_session),
                          user: CurrentUser = Depends(get_current_user)):
+    """History follows the PICTURE, not the record: questions are looked up by
+    content hash, so a photo cloned/re-uploaded into another case still shows
+    its full Q&A history (files are content-addressed; history should be too)."""
+    media = (await session.execute(
+        select(MediaFile).where(MediaFile.id == media_id))).scalar_one_or_none()
+    if media is None:
+        raise HTTPException(status_code=404, detail="ملف غير موجود")
+    sibling_ids = select(MediaFile.id).where(
+        MediaFile.content_sha256 == media.content_sha256)
     rows = (await session.execute(
-        select(PhotoQuestion).where(PhotoQuestion.media_file_id == media_id)
+        select(PhotoQuestion).where(PhotoQuestion.media_file_id.in_(sibling_ids))
         .order_by(PhotoQuestion.created_at.desc()))).scalars().all()
     return [_q_dict(r) for r in rows]
 
