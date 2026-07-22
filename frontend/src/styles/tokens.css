@@ -22,6 +22,7 @@
   --color-primary: #f54e00;
   --color-primary-active: #d04200;
   --color-on-primary: #ffffff;
+  --color-hover: #ececec;   /* grey hover fill for nav/tabs (template spec) */
   --color-success: #1f8a65;
   --color-error: #cf2d56;
   --color-warning: #b45309;
@@ -55,23 +56,35 @@
   --radius-xl: 16px;
 }
 
-/* warm-ink dark inversion (light stays primary/official) */
+/* Refined ChatGPT-style dark — the real app's layering, not flat black:
+   darker sidebar (#171717) beside a #212121 canvas, raised #2b2b2b cards,
+   visible-but-quiet hairlines, warm brand orange kept for identity. */
 [data-theme="dark"] {
-  --color-canvas: #201f1a;
-  --color-canvas-soft: #26251e;
-  --color-card: #2b2a23;
-  --color-strong: #3a382f;
-  --color-hairline: #3a382f;
-  --color-hairline-soft: #33312a;
-  --color-hairline-strong: #4a4738;
-  --color-ink: #f0efe9;
-  --color-body: #c9c6bb;
-  --color-muted: #98948a;
-  --color-muted-soft: #6f6c62;
-  --color-warning-soft: #3a2d1a;
-  --color-success-soft: #1d312a;
-  --color-error-soft: #3a2129;
+  --color-canvas: #212121;
+  --color-canvas-soft: #2a2a2a;
+  --color-card: #2b2b2b;
+  --color-strong: #3a3a3a;
+  --color-hairline: #ffffff12;
+  --color-hairline-soft: #ffffff0d;
+  --color-hairline-strong: #ffffff2b;
+  --color-ink: #ececec;
+  --color-body: #c9c9c9;
+  --color-muted: #9b9b9b;
+  --color-muted-soft: #7a7a7a;
+  --color-primary: #ff5c1c;
+  --color-primary-active: #f54e00;
+  --color-on-primary: #ffffff;
+  --color-hover: #2f2f2f;
+  --color-warning-soft: #332a1c;
+  --color-success-soft: #1c2f26;
+  --color-error-soft: #332229;
+  color-scheme: dark;
 }
+[data-theme="dark"] ::selection { background: #007aff; color: #fff; }
+
+/* sidebar sits one step darker than the canvas (ChatGPT layering) */
+.sidebar-surface { background: var(--color-canvas); }
+[data-theme="dark"] .sidebar-surface { background: #171717; }
 
 html { background: var(--color-canvas); }
 body {

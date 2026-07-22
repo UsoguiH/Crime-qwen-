@@ -158,7 +158,8 @@ const APPS = {
   scene: {
     label: "مسرح الجريمة",
     url:   "/",           /* Athar React app — same origin, served by this nginx */
-    mode:  "embed"        /* "embed" = iframe inside the shell | "redirect" = leave the shell */
+    mode:  "redirect"     /* leave the shell: no iframe quirks (PDF export, back
+                             button, shortcuts); Athar's sidebar links back here */
   },
   sketch: {
     label: "الرسام الجنائي",

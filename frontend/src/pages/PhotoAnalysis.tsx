@@ -202,9 +202,6 @@ export default function PhotoAnalysis() {
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap mt-2">
                       <CategoryBadge category={d.category} />
-                      {d.needs_human_review && (
-                        <Badge tone="warning">مراجعة بشرية</Badge>
-                      )}
                     </div>
                     <div className="mt-2"><ConfidenceMeter value={d.confidence} /></div>
                     <p className="text-xs text-body mt-2 line-clamp-3">{d.description_ar}</p>

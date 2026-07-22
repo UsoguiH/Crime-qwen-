@@ -4,12 +4,10 @@ import { Spinner, StatusBadge } from "../components/ui";
 import { Case, Media, Run, get } from "../lib/api";
 import { fmtDate } from "../lib/format";
 import { useRunEvents } from "../lib/sse";
-import EvidenceTab from "./tabs/EvidenceTab";
 import MediaTab from "./tabs/MediaTab";
-import ReportTab from "./tabs/ReportTab";
 
 const TABS = [
-  ["media", "الوسائط"], ["evidence", "الأدلة"], ["report", "التقرير"],
+  ["media", "الوسائط"],
 ] as const;
 
 export default function CaseDetail() {
@@ -74,8 +72,6 @@ export default function CaseDetail() {
       </nav>
 
       {tab === "media" && <MediaTab caseId={caseId} media={media ?? []} />}
-      {tab === "evidence" && <EvidenceTab runId={latestRunId} />}
-      {tab === "report" && <ReportTab runId={latestRunId} />}
     </div>
   );
 }

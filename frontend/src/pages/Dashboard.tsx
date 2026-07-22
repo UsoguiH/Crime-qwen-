@@ -70,13 +70,6 @@ export default function Dashboard() {
                     {" · "}أُنشئت: {fmtDate(c.created_at)}
                   </div>
                 </div>
-                {(c.pending_review ?? 0) > 0 && (
-                  <div className="mt-3">
-                    <Badge tone="warning">
-                      {arDigits(c.pending_review!)} بانتظار المراجعة البشرية
-                    </Badge>
-                  </div>
-                )}
               </Card>
             </Link>
           ))}

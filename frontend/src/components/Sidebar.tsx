@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  FilePlus2, FileText, FolderKanban, Images, LogOut, Menu, Moon,
+  FilePlus2, FileText, FolderKanban, Images, LayoutGrid, LogOut, Menu, Moon,
   PanelRightClose, PanelRightOpen, Search, Settings, Sun, X,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -13,8 +13,6 @@ import { Badge } from "./ui";
 
 const CASE_TABS: Array<{ key: string; label: string; icon: ReactNode }> = [
   { key: "media", label: "الوسائط", icon: <Images size={15} /> },
-  { key: "evidence", label: "الأدلة", icon: <Search size={15} /> },
-  { key: "report", label: "التقرير", icon: <FileText size={15} /> },
 ];
 
 function NavItem({ to, icon, label, active, badge, onClick, collapsed }: {
@@ -27,11 +25,11 @@ function NavItem({ to, icon, label, active, badge, onClick, collapsed }: {
       onClick={onClick}
       title={collapsed ? label : undefined}
       data-anim-item
-      className={`flex items-center rounded-md text-sm transition-colors border-s-2 ${
+      className={`flex items-center rounded-md text-sm transition-colors ${
         collapsed ? "justify-center py-2.5" : "gap-2.5 px-3 py-2"} ${
         active
-          ? "bg-canvas-soft text-ink font-semibold border-primary"
-          : "text-body hover:text-ink hover:bg-canvas-soft border-transparent"
+          ? "bg-hover text-ink font-semibold"
+          : "text-body hover:text-ink hover:bg-hover"
       }`}
     >
       <span className={active ? "text-primary" : "text-muted"}>{icon}</span>
@@ -153,9 +151,14 @@ function SidebarBody({ onNavigate, collapsed = false, onToggle }: {
           <NavItem to="/" icon={<FolderKanban size={15} />} label="القضايا"
                    active={location.pathname === "/"} onClick={onNavigate}
                    collapsed={collapsed} />
-          <NavItem to="/settings" icon={<Settings size={15} />} label="الإعدادات"
-                   active={location.pathname === "/settings"} onClick={onNavigate}
-                   collapsed={collapsed} />
+          {/* back to the platform shell (static page, not a router route) */}
+          <a href="/shell.html" title={collapsed ? "المنصة" : undefined}
+             data-anim-item
+             className={`flex items-center rounded-md text-sm transition-colors text-body hover:text-ink hover:bg-hover ${
+               collapsed ? "justify-center py-2.5" : "gap-2.5 px-3 py-2"}`}>
+            <span className="text-muted"><LayoutGrid size={15} /></span>
+            {!collapsed && <span className="flex-1 truncate">المنصة</span>}
+          </a>
         </div>
 
         {inCase && caseData && (
@@ -199,6 +202,12 @@ function SidebarBody({ onNavigate, collapsed = false, onToggle }: {
       </nav>
 
       <div className={`border-t border-hairline ${collapsed ? "p-2" : "p-3"}`}>
+        {/* الإعدادات lives at the bottom (template sidebar-bottom spec) */}
+        <div className={collapsed ? "mb-2" : "mb-2"}>
+          <NavItem to="/settings" icon={<Settings size={15} />} label="الإعدادات"
+                   active={location.pathname === "/settings"} onClick={onNavigate}
+                   collapsed={collapsed} />
+        </div>
         {collapsed ? (
           <div className="flex flex-col items-center gap-2">
             <span title={user?.display_name_ar}
@@ -260,13 +269,13 @@ export default function Sidebar() {
     <>
       {/* desktop */}
       <aside ref={asideRef}
-             className="fixed inset-y-0 start-0 z-40 hidden w-[var(--sidebar-w)] border-e border-hairline bg-canvas lg:block transition-[width] duration-200 overflow-hidden">
+             className="sidebar-surface fixed inset-y-0 start-0 z-40 hidden w-[var(--sidebar-w)] border-e border-hairline lg:block transition-[width] duration-200 overflow-hidden">
         <SidebarBody collapsed={collapsed}
                      onToggle={() => setCollapsed((c) => !c)} />
       </aside>
 
       {/* mobile top bar */}
-      <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-hairline bg-canvas px-4 lg:hidden">
+      <header className="sidebar-surface fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-hairline px-4 lg:hidden">
         <button onClick={() => setOpen(true)} className="text-body cursor-pointer p-1"
                 aria-label="القائمة">
           <Menu size={20} />
@@ -280,7 +289,7 @@ export default function Sidebar() {
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true">
           <div className="absolute inset-0" style={{ background: "#26251e66" }}
                onClick={() => setOpen(false)} />
-          <div className="absolute inset-y-0 start-0 w-72 bg-canvas border-e border-hairline">
+          <div className="sidebar-surface absolute inset-y-0 start-0 w-72 border-e border-hairline">
             <button onClick={() => setOpen(false)} aria-label="إغلاق"
                     className="absolute top-4 end-3 text-muted hover:text-ink cursor-pointer z-10">
               <X size={18} />
