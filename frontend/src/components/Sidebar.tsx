@@ -125,7 +125,7 @@ function SidebarBody({ onNavigate, collapsed = false, onToggle }: {
             <div className="flex items-center justify-between">
               <Link to="/" onClick={onNavigate} className="flex items-baseline gap-2">
                 <span data-anim-logo className="inline-block text-2xl font-semibold">أثر</span>
-                <span className="text-[10px] text-muted">تحليل مسرح الجريمة</span>
+                <span className="text-[10px] text-muted">الدليل الجنائي</span>
               </Link>
               <span className="flex items-center gap-1">
                 <Badge tone="error">سري</Badge>

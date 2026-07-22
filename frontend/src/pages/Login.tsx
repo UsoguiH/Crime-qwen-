@@ -37,7 +37,7 @@ export default function Login() {
       <div className="w-full max-w-3xl text-center">
         <span data-anim="rise" className="inline-block"><Badge tone="error">سري</Badge></span>
         <h1 data-anim="title" className="text-5xl mt-6 mb-2 font-normal">أثر</h1>
-        <p data-anim="title" className="text-body mb-1">نظام تحليل مسرح الجريمة بمساعدة الذكاء الاصطناعي</p>
+        <p data-anim="title" className="text-body mb-1">نظام الدليل الجنائي بمساعدة الذكاء الاصطناعي</p>
         <p data-anim="title" className="text-muted text-sm mb-10">«كل تماسٍ يترك أثراً» — اختر حسابك للدخول</p>
         {isLoading ? (
           <Spinner />
