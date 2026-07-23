@@ -193,13 +193,15 @@ Run the eval gate (PR-5) — all must hold on 2/2 consecutive runs:
 | Checkpoint/resume mid-frame | Unchanged: frame-level checkpointing; a resumed frame reruns all stages (idempotent — dedup absorbs repeats) |
 
 ## 5. Escalation ladder (measured, each rung gated on remaining misses)
-- **Phase 2 · A5 — detector proposals** (Grounding-DINO / YOLO-World via
-  hosted API or CPU — no local GPU needed, 10–30s/photo): near-exhaustive
-  on small SOLID objects (casings, phones, blades); weak on diffuse
-  stains. Proposals feed the same verify+enrich gate (MQADet pattern).
-- **Phase 3 · A6 — SAM2 auto-mask proposals**: every distinct region
-  proposed (~200 masks) → crop-classify each. Proposal recall becomes
-  exhaustive BY CONSTRUCTION — every pixel belongs to a proposed region.
+- **Phase 2 · A5 — SAM3 concept proposals** (v5.1 — replaces the previous
+  two-rung DINO/YOLO + SAM2 design; owner spotted the simplification):
+  SAM 3 does BOTH jobs in one model — (a) text-prompted concept
+  detection ("سكين/بقعة دم/شعر" → every instance boxed+masked) replacing
+  open-vocab detectors, and (b) exhaustive segment-everything proposals
+  replacing SAM2 — so proposal recall becomes exhaustive by construction
+  with ONE integration. All proposals feed the same verify+enrich gate.
+  Requirement at that time: hosted API key (Roboflow/fal.ai) or GPU;
+  CPU possible but slow.
 - **Phase 4 — learning flywheel**: human review decisions (accept /
   reject / re-label / hand-drawn boxes) are stored as (crop, verdict)
   pairs → auto-growing eval set for the gate + few-shot exemplars
