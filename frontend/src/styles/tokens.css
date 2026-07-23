@@ -46,7 +46,7 @@
   --color-cat-trace: #5e8f6c;
   --color-cat-human: #6b6b6b;
 
-  --font-sans: "IBM Plex Sans Arabic", "Inter", system-ui, sans-serif;
+  --font-sans: "Tajawal", "IBM Plex Sans Arabic", "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
 
   --radius-xs: 4px;
@@ -56,35 +56,60 @@
   --radius-xl: 16px;
 }
 
-/* Refined ChatGPT-style dark — the real app's layering, not flat black:
-   darker sidebar (#171717) beside a #212121 canvas, raised #2b2b2b cards,
-   visible-but-quiet hairlines, warm brand orange kept for identity. */
+/* UICrime design (الرسام الجنائي template): near-black canvas, #070709
+   gradient panels on #191a20 hairlines, cool ink (#f2f4fb/#cdd6ea/#818aa0),
+   amber gradient primaries with glow — the platform's shared night look. */
 [data-theme="dark"] {
-  --color-canvas: #212121;
-  --color-canvas-soft: #2a2a2a;
-  --color-card: #2b2b2b;
-  --color-strong: #3a3a3a;
-  --color-hairline: #ffffff12;
-  --color-hairline-soft: #ffffff0d;
-  --color-hairline-strong: #ffffff2b;
-  --color-ink: #ececec;
-  --color-body: #c9c9c9;
-  --color-muted: #9b9b9b;
-  --color-muted-soft: #7a7a7a;
-  --color-primary: #ff5c1c;
-  --color-primary-active: #f54e00;
+  --color-canvas: #000000;
+  --color-canvas-soft: #0d0d12;
+  --color-card: #070709;
+  --color-strong: #14151b;
+  --color-hairline: #191a20;
+  --color-hairline-soft: #12131a;
+  --color-hairline-strong: #2a2c38;
+  --color-ink: #f2f4fb;
+  --color-body: #cdd6ea;
+  --color-muted: #818aa0;
+  --color-muted-soft: #4a5162;
+  --color-primary: #e08810;
+  --color-primary-active: #c2740b;
   --color-on-primary: #ffffff;
-  --color-hover: #2f2f2f;
-  --color-warning-soft: #332a1c;
-  --color-success-soft: #1c2f26;
-  --color-error-soft: #332229;
+  --color-hover: #0d0d12;
+  --color-success: #34d399;
+  --color-error: #ff3b52;
+  --color-warning: #fbbf24;
+  --color-warning-soft: #2c1f07;
+  --color-success-soft: #062a25;
+  --color-error-soft: #3a0d14;
   color-scheme: dark;
 }
-[data-theme="dark"] ::selection { background: #007aff; color: #fff; }
+[data-theme="dark"] ::selection { background: #25e0f5; color: #04222a; }
+[data-theme="dark"] :focus-visible {
+  outline: 2px solid #25e0f588;
+}
 
-/* sidebar sits one step darker than the canvas (ChatGPT layering) */
+/* sidebar/top chrome sits on the same black as the canvas (template topbar) */
 .sidebar-surface { background: var(--color-canvas); }
-[data-theme="dark"] .sidebar-surface { background: #171717; }
+[data-theme="dark"] .sidebar-surface { background: #000000; }
+
+/* template surfaces: cards are subtle vertical gradients with 18px radius */
+[data-theme="dark"] .card {
+  background: linear-gradient(180deg, #070709, #040405);
+  border-radius: 18px;
+}
+
+/* template primaries: amber gradient + glow, weight 800, lift on hover */
+[data-theme="dark"] .bg-primary {
+  background: linear-gradient(180deg, #e08810, #9a5c07);
+  box-shadow: 0 0 22px #f59e0b3d;
+  font-weight: 800;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+[data-theme="dark"] .bg-primary:hover {
+  filter: brightness(1.14);
+  transform: translateY(-1px);
+}
+[data-theme="dark"] .bg-primary:active { transform: none; }
 
 html { background: var(--color-canvas); }
 body {

@@ -16,8 +16,9 @@ const qc = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 5_000 } },
 });
 
+// UICrime night design is the default; light remains an explicit choice
 const saved = localStorage.getItem("athar-theme");
-if (saved === "dark") document.documentElement.dataset.theme = "dark";
+if (saved !== "light") document.documentElement.dataset.theme = "dark";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
