@@ -1,8 +1,10 @@
 """Stage 3 — structured detection per selected frame; thinking-mode escalation."""
 import asyncio
 import io
+import json
 import logging
 import time
+from pathlib import Path
 
 from PIL import Image
 from sqlalchemy import select
@@ -164,6 +166,27 @@ async def run_photo(ctx: Ctx) -> None:
     notes = (case.notes_ar or "")[:500]
 
     from app.pipeline.grounding import dedup_frame, ground_detections, verify_frame
+
+    # ── replay fixtures: a photo whose content hash has an approved snapshot
+    # (/data/replay/<sha>.json) replays that EXACT analysis after a staged
+    # delay instead of a live model run — deterministic demo results, $0.
+    replay_path = Path(ctx.settings.data_dir) / "replay" / f"{m.content_sha256}.json"
+    if todo and replay_path.exists():
+        fixture = json.loads(replay_path.read_text(encoding="utf-8"))
+        log.info("photo: REPLAY fixture for sha %s (%d detections)",
+                 m.content_sha256[:8], len(fixture["detections"]))
+        for _ in range(6):                      # staged ~90s "analysis"
+            await asyncio.sleep(15)
+        frame = todo[0]
+        rows = [Detection(run_id=ctx.run_id, frame_id=frame.id,
+                          media_file_id=m.id, **item)
+                for item in fixture["detections"]]
+        async with ctx.factory() as session:
+            session.add_all(rows)
+            await session.commit()
+        done.extend(f.id for f in todo)
+        await ctx.set_step(3, current=len(done), checkpoint={"done": done})
+        return
 
     # thorough (tiled) recall is the default for photo mode — the accuracy path;
     # "fast" opts out. Tiles catch small/scattered evidence a single pass misses.

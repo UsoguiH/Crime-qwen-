@@ -249,6 +249,33 @@ class VLMClient:
             {"role": "user", "content": user_content},
         ]
 
+    HEDGE_AFTER_S = 90   # normal calls answer well under this; only stalls race
+
+    async def _hedged_create(self, client, kwargs: dict):
+        """Tail-latency hedging ("the tail at scale"): if a request produces no
+        response for HEDGE_AFTER_S, launch an identical backup request and take
+        whichever finishes first. Nothing is killed on a timer alone — a slow
+        original may still win — but a stalled provider replica can no longer
+        freeze a whole analysis (3 stalls observed 2026-07-23, 9-18 min each).
+        The loser is cancelled; the rare duplicate costs ~a cent."""
+        first = asyncio.create_task(client.chat.completions.create(**kwargs))
+        done, _ = await asyncio.wait({first}, timeout=self.HEDGE_AFTER_S)
+        if first in done:
+            return first.result()   # normal path: no hedge ever started
+        backup = asyncio.create_task(client.chat.completions.create(**kwargs))
+        pending = {first, backup}
+        last_exc: BaseException | None = None
+        while pending:
+            done, pending = await asyncio.wait(
+                pending, return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                if task.exception() is None:
+                    for p in pending:
+                        p.cancel()
+                    return task.result()
+                last_exc = task.exception()
+        raise last_exc  # both attempts failed → tenacity takes over
+
     @retry(
         retry=retry_if_exception_type((APITimeoutError, APIConnectionError,
                                        RateLimitError, InternalServerError)),
@@ -274,7 +301,7 @@ class VLMClient:
                 and response_format == {"type": "json_object"}):
             kwargs["max_tokens"] = max_output_tokens
         try:
-            resp = await client.chat.completions.create(**kwargs)
+            resp = await self._hedged_create(client, kwargs)
         except APIStatusError as exc:
             if exc.status_code >= 500:
                 raise InternalServerError(exc.message, response=exc.response,

@@ -47,6 +47,10 @@ def build_request_extras(settings: Settings, *, thinking: bool,
                 # eval pins strictly (ALLOW_FALLBACKS=false); production keeps
                 # fallbacks so an Alibaba outage degrades instead of failing
                 provider["allow_fallbacks"] = settings.openrouter_allow_fallbacks
+            else:
+                # prefer fast replicas — stalled providers froze three runs
+                # on 2026-07-23 (hedging in client.py is the second guard)
+                provider["sort"] = "throughput"
             extra_body["provider"] = provider
 
     return response_format, extra_body
