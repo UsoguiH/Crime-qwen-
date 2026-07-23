@@ -61,6 +61,8 @@ function MediaRow({ m }: { m: Media }) {
     try {
       await del(`/media/${m.id}`);
       await qc.invalidateQueries({ queryKey: ["media", m.case_id] });
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "تعذر حذف الصورة");
     } finally {
       setRemoving(false);
     }

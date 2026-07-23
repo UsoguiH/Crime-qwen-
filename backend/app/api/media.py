@@ -13,7 +13,7 @@ from app.config import Settings
 from app.core import make_id
 from app.deps import (CurrentUser, get_factory, get_current_user, get_session,
                       require_role, settings_dep)
-from app.db.models import (AnalysisRun, Case, Detection, Frame, MediaFile,
+from app.db.models import (AnalysisRun, Case, Detection, Frame, Job, MediaFile,
                            ModelCall, PhotoQuestion, RunStep)
 from app.services import audit
 from app.services.media_meta import image_meta, probe_video
@@ -228,6 +228,7 @@ async def delete_media(media_id: str,
     if run_ids:
         await session.execute(delete(RunStep).where(RunStep.run_id.in_(run_ids)))
         await session.execute(delete(ModelCall).where(ModelCall.run_id.in_(run_ids)))
+        await session.execute(delete(Job).where(Job.run_id.in_(run_ids)))
         await session.execute(delete(AnalysisRun).where(AnalysisRun.id.in_(run_ids)))
     filename = m.original_filename
     case_id = m.case_id
