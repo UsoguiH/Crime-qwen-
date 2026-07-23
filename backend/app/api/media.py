@@ -6,14 +6,15 @@ from pathlib import Path
 import filetype
 from fastapi import (APIRouter, Depends, File, Form, HTTPException, UploadFile)
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.core import make_id
 from app.deps import (CurrentUser, get_factory, get_current_user, get_session,
                       require_role, settings_dep)
-from app.db.models import Case, Frame, MediaFile
+from app.db.models import (AnalysisRun, Case, Detection, Frame, MediaFile,
+                           ModelCall, PhotoQuestion, RunStep)
 from app.services import audit
 from app.services.media_meta import image_meta, probe_video
 from app.services.storage import store_original
@@ -31,6 +32,7 @@ class MediaPatch(BaseModel):
     source_label_ar: str | None = None
     source_type: str | None = None
     excluded: bool | None = None
+    original_filename: str | None = None   # user-facing rename
 
 
 def _media_dict(m: MediaFile) -> dict:
@@ -192,6 +194,54 @@ async def patch_media(media_id: str, body: MediaPatch,
                        actor_label=user.display_name_ar, object_type="media",
                        object_id=m.id, detail=changes)
     return _media_dict(m)
+
+
+@router.delete("/media/{media_id}")
+async def delete_media(media_id: str,
+                       session: AsyncSession = Depends(get_session),
+                       settings: Settings = Depends(settings_dep),
+                       user: CurrentUser = Depends(require_role("investigator")),
+                       factory=Depends(get_factory)):
+    """Remove a photo from its case: media row, frames, detections, its photo
+    analysis runs and their Q&A. The stored ORIGINAL file is content-addressed
+    and possibly shared across cases — it is never deleted; re-uploading the
+    same picture later re-attaches to it and can be analyzed fresh."""
+    m = (await session.execute(
+        select(MediaFile).where(MediaFile.id == media_id))).scalar_one_or_none()
+    if m is None:
+        raise HTTPException(status_code=404, detail="ملف غير موجود")
+    # photo runs targeting exactly this media
+    runs = (await session.execute(
+        select(AnalysisRun).where(AnalysisRun.case_id == m.case_id))).scalars().all()
+    run_ids = [r.id for r in runs
+               if (r.options_json or {}).get("mode") == "photo"
+               and media_id in ((r.options_json or {}).get("media_ids") or [])]
+    active = [r for r in runs if r.id in run_ids
+              and r.status in ("queued", "running")]
+    if active:
+        raise HTTPException(status_code=409,
+                            detail="لا يمكن الحذف أثناء تحليل قيد التنفيذ")
+    await session.execute(delete(Detection).where(Detection.media_file_id == media_id))
+    await session.execute(delete(Frame).where(Frame.media_file_id == media_id))
+    await session.execute(delete(PhotoQuestion)
+                          .where(PhotoQuestion.media_file_id == media_id))
+    if run_ids:
+        await session.execute(delete(RunStep).where(RunStep.run_id.in_(run_ids)))
+        await session.execute(delete(ModelCall).where(ModelCall.run_id.in_(run_ids)))
+        await session.execute(delete(AnalysisRun).where(AnalysisRun.id.in_(run_ids)))
+    filename = m.original_filename
+    case_id = m.case_id
+    await session.delete(m)
+    await session.commit()
+    thumb = settings.derived_dir / "thumbs" / f"{media_id}.jpg"
+    if thumb.exists():
+        thumb.unlink()
+    await audit.append(factory, action="media.delete", actor_user_id=user.id,
+                       actor_label=user.display_name_ar, object_type="media",
+                       object_id=media_id,
+                       detail={"case_id": case_id, "filename": filename,
+                               "runs_removed": len(run_ids)})
+    return {"deleted": True}
 
 
 @router.get("/media/{media_id}/frames")

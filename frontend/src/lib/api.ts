@@ -35,6 +35,8 @@ export const patch = <T,>(path: string, body: unknown) =>
   request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
 export const postForm = <T,>(path: string, form: FormData) =>
   request<T>(path, { method: "POST", body: form });
+export const del = <T,>(path: string) =>
+  request<T>(path, { method: "DELETE" });
 
 /* ─── types ─── */
 export interface User {
