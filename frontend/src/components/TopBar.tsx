@@ -30,8 +30,8 @@ export default function TopBar() {
                   className="text-muted hover:text-ink cursor-pointer p-1.5">
             {dark ? <Sun size={15} /> : <Moon size={15} />}
           </button>
-          <button title="خروج" className="text-muted hover:text-error cursor-pointer p-1.5"
-                  onClick={() => void logout().then(() => window.location.assign("/login"))}>
+          <button title="خروج إلى المنصة" className="text-muted hover:text-error cursor-pointer p-1.5"
+                  onClick={() => void logout().then(() => window.location.assign("/shell.html"))}>
             <LogOut size={15} />
           </button>
         </div>
