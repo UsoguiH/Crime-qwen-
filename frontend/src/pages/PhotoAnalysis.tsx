@@ -2,14 +2,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Play, RotateCcw } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import AskPanel from "../components/AskPanel";
 import PhotoCanvas, { CanvasBox } from "../components/PhotoCanvas";
 import PipelineProgress from "../components/PipelineProgress";
 import {
   Badge, Button, Card, CategoryBadge, ConfidenceMeter, EmptyState, SeqBadge,
   Spinner,
 } from "../components/ui";
-import { Media, PhotoQuestion, Run, get, post } from "../lib/api";
+import { Media, Run, get, post } from "../lib/api";
 import { CATEGORY_AR, CATEGORY_COLOR, arDigits, fmtDateTime } from "../lib/format";
 import { useRunEvents } from "../lib/sse";
 
@@ -80,8 +79,6 @@ export default function PhotoAnalysis() {
   const [runId, setRunId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [thinking, setThinking] = useState(true);
-  const [tab, setTab] = useState<"evidence" | "ask">("evidence");
-  const [answerBoxes, setAnswerBoxes] = useState<PhotoQuestion["grounded_boxes"]>([]);
   const [catFilter, setCatFilter] = useState<Set<string>>(new Set());
 
   const { data: media } = useQuery({
@@ -151,18 +148,11 @@ export default function PhotoAnalysis() {
     });
   };
 
-  const boxes: CanvasBox[] = useMemo(() => {
-    if (tab === "ask") {
-      return answerBoxes.map((b, i) => ({
-        id: `ans-${i}`, bbox: b.bbox, color: "#f54e00",
-        label: b.label_ar, dashed: true, alwaysLabel: true,
-      }));
-    }
-    return visibleDets.map((d, i) => ({
+  const boxes: CanvasBox[] = useMemo(() =>
+    visibleDets.map((d, i) => ({
       id: d.id, bbox: d.bbox, index: i + 1,
       color: CATEGORY_COLOR[d.category] ?? "#26251e", label: d.name_ar,
-    }));
-  }, [tab, visibleDets, answerBoxes]);
+    })), [visibleDets]);
 
   return (
     <div className="space-y-5">
@@ -202,7 +192,7 @@ export default function PhotoAnalysis() {
 
       {isLoading ? <Spinner /> : !current ? (
         <EmptyState title="لم تُحلَّل هذه الصورة بعد"
-                    hint="ابدأ التحليل الفردي، أو اسأل سؤالاً مباشراً عن الصورة أدناه" />
+                    hint="ابدأ التحليل الفردي بالزر أعلاه" />
       ) : (
         <div className="grid lg:grid-cols-[1.6fr_1fr] gap-5 items-start">
           <Card data-anim="hero" className="p-3 lg:sticky lg:top-4">
@@ -214,8 +204,6 @@ export default function PhotoAnalysis() {
             </div>
             <div className="mt-2 text-[11px] text-muted text-center">
               مرّر أو انقر على دليل — في الصورة أو في البطاقات — لإبرازه وحده.
-              {tab === "ask" && answerBoxes.length > 0 &&
-                " الصناديق المتقطّعة تُبرز مواضع إجابة السؤال."}
               {current.status.startsWith("completed") &&
                 ` اكتمل: ${fmtDateTime(current.finished_at)}`}
             </div>
@@ -223,17 +211,10 @@ export default function PhotoAnalysis() {
 
           <div className="space-y-3">
             <div className="flex gap-1 border-b border-hairline items-center">
-              <button onClick={() => setTab("evidence")}
-                      className={`px-4 py-2 text-sm border-b-2 -mb-px cursor-pointer ${
-                        tab === "evidence" ? "border-primary font-semibold" : "border-transparent text-body"}`}>
+              <span className="px-4 py-2 text-sm border-b-2 -mb-px border-primary font-semibold">
                 الأدلة ({arDigits(dets.length)})
-              </button>
-              <button onClick={() => setTab("ask")}
-                      className={`px-4 py-2 text-sm border-b-2 -mb-px cursor-pointer ${
-                        tab === "ask" ? "border-primary font-semibold" : "border-transparent text-body"}`}>
-                اسأل عن الصورة
-              </button>
-              {tab === "evidence" && (analyses?.length ?? 0) > 1 && (
+              </span>
+              {(analyses?.length ?? 0) > 1 && (
                 <select
                   className="ms-auto mb-1 h-8 rounded-md border border-hairline-strong bg-card px-2 text-xs"
                   value={current.id} onChange={(e) => setRunId(e.target.value)}>
@@ -247,14 +228,11 @@ export default function PhotoAnalysis() {
               )}
             </div>
 
-            {tab === "ask" ? (
-              <AskPanel mediaId={mediaId}
-                        onBoxes={(b) => { setAnswerBoxes(b); setSelected(null); }} />
-            ) : (
+            {(
               <>
                 {current.status.startsWith("completed") && dets.length === 0 && (
                   <EmptyState title="لم يُرصد دليل ظاهر"
-                              hint="جرّب إعادة التحليل مع التفكير العميق، أو اسأل سؤالاً مباشراً" />
+                              hint="جرّب إعادة التحليل مع التفكير العميق" />
                 )}
                 {catCounts.size > 1 && (
                   <CategoryFilter counts={catCounts} active={catFilter}
@@ -265,8 +243,7 @@ export default function PhotoAnalysis() {
                      className="anim-list grid gap-3 sm:grid-cols-2">
                   {visibleDets.map((d, i) => (
                   <Card key={d.id}
-                        onClick={() => { setSelected(selected === d.id ? null : d.id);
-                                         setTab("evidence"); }}
+                        onClick={() => setSelected(selected === d.id ? null : d.id)}
                         onMouseEnter={() => setHovered(d.id)}
                         onMouseLeave={() => setHovered(null)}
                         className={`p-3 cursor-pointer transition-colors h-full flex flex-col ${
