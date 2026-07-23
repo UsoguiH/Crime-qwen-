@@ -10,8 +10,59 @@ import {
   Spinner,
 } from "../components/ui";
 import { Media, PhotoQuestion, Run, get, post } from "../lib/api";
-import { CATEGORY_COLOR, arDigits, fmtDateTime } from "../lib/format";
+import { CATEGORY_AR, CATEGORY_COLOR, arDigits, fmtDateTime } from "../lib/format";
 import { useRunEvents } from "../lib/sse";
+
+/* Evidence-type filter bar: one pill per category present in the results,
+   colored with the category's own color, showing live counts. Multi-select
+   toggles; «الكل» clears. Filtering drives BOTH the cards and the boxes
+   drawn on the photo, so the scene declutters to exactly what you chose. */
+function CategoryFilter({ counts, active, onToggle, onClear }: {
+  counts: Map<string, number>;
+  active: Set<string>;
+  onToggle: (cat: string) => void;
+  onClear: () => void;
+}) {
+  const total = [...counts.values()].reduce((a, b) => a + b, 0);
+  const cats = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const allOn = active.size === 0;
+  return (
+    <div className="flex items-center gap-2 flex-wrap" role="group" aria-label="تصفية الأدلة">
+      <button onClick={onClear}
+              className={`btn-pop inline-flex items-center gap-1.5 rounded-full border px-3.5 h-8 text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                allOn ? "border-ink/60 bg-hover text-ink"
+                      : "border-hairline text-muted hover:text-ink hover:bg-hover"}`}>
+        الكل
+        <span className={`text-[10px] ${allOn ? "text-body" : "text-muted-soft"}`}>
+          {arDigits(total)}
+        </span>
+      </button>
+      {cats.map(([cat, n]) => {
+        const color = CATEGORY_COLOR[cat] ?? "var(--color-ink)";
+        const on = active.has(cat);
+        return (
+          <button key={cat} onClick={() => onToggle(cat)}
+                  aria-pressed={on}
+                  className={`btn-pop inline-flex items-center gap-1.5 rounded-full border px-3.5 h-8 text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                    on ? "text-ink" : "border-hairline text-muted hover:text-ink hover:bg-hover"}`}
+                  style={on ? {
+                    borderColor: color,
+                    background: `color-mix(in srgb, ${color} 16%, transparent)`,
+                    boxShadow: `0 0 14px color-mix(in srgb, ${color} 30%, transparent)`,
+                  } : undefined}>
+            <span aria-hidden className="h-2 w-2 rounded-full transition-shadow"
+                  style={{ background: color,
+                           boxShadow: on ? `0 0 8px ${color}` : "none" }} />
+            {CATEGORY_AR[cat] ?? cat}
+            <span className={on ? "text-body text-[10px]" : "text-muted-soft text-[10px]"}>
+              {arDigits(n)}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 interface PhotoRun extends Run { detections_count?: number }
 interface Det {
@@ -31,6 +82,7 @@ export default function PhotoAnalysis() {
   const [thinking, setThinking] = useState(true);
   const [tab, setTab] = useState<"evidence" | "ask">("evidence");
   const [answerBoxes, setAnswerBoxes] = useState<PhotoQuestion["grounded_boxes"]>([]);
+  const [catFilter, setCatFilter] = useState<Set<string>>(new Set());
 
   const { data: media } = useQuery({
     queryKey: ["media-one", mediaId],
@@ -79,6 +131,26 @@ export default function PhotoAnalysis() {
   const dets = useMemo(() => detections ?? [], [detections]);
   const src = `/api/files/original/${mediaId}`;
 
+  const catCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    dets.forEach((d) => m.set(d.category, (m.get(d.category) ?? 0) + 1));
+    return m;
+  }, [dets]);
+  // filter drives cards AND photo boxes; numbering stays in sync between them
+  const visibleDets = useMemo(
+    () => (catFilter.size === 0 ? dets
+           : dets.filter((d) => catFilter.has(d.category))),
+    [dets, catFilter]);
+  const toggleCat = (cat: string) => {
+    setSelected(null);
+    setCatFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  };
+
   const boxes: CanvasBox[] = useMemo(() => {
     if (tab === "ask") {
       return answerBoxes.map((b, i) => ({
@@ -86,11 +158,11 @@ export default function PhotoAnalysis() {
         label: b.label_ar, dashed: true, alwaysLabel: true,
       }));
     }
-    return dets.map((d, i) => ({
+    return visibleDets.map((d, i) => ({
       id: d.id, bbox: d.bbox, index: i + 1,
       color: CATEGORY_COLOR[d.category] ?? "#26251e", label: d.name_ar,
     }));
-  }, [tab, dets, answerBoxes]);
+  }, [tab, visibleDets, answerBoxes]);
 
   return (
     <div className="space-y-5">
@@ -184,8 +256,14 @@ export default function PhotoAnalysis() {
                   <EmptyState title="لم يُرصد دليل ظاهر"
                               hint="جرّب إعادة التحليل مع التفكير العميق، أو اسأل سؤالاً مباشراً" />
                 )}
-                <div className="anim-list grid gap-3 sm:grid-cols-2">
-                  {dets.map((d, i) => (
+                {catCounts.size > 1 && (
+                  <CategoryFilter counts={catCounts} active={catFilter}
+                                  onToggle={toggleCat}
+                                  onClear={() => { setCatFilter(new Set()); setSelected(null); }} />
+                )}
+                <div key={[...catFilter].sort().join()}
+                     className="anim-list grid gap-3 sm:grid-cols-2">
+                  {visibleDets.map((d, i) => (
                   <Card key={d.id}
                         onClick={() => { setSelected(selected === d.id ? null : d.id);
                                          setTab("evidence"); }}
