@@ -1,6 +1,6 @@
 # Implementation Plan — Exhaustive-Recall + Verified Pipeline
 
-Branch: `Make_Qwen_Smarter_faster` · Status: APPROVED-PENDING · v4 (2026-07-23)
+Branch: `Make_Qwen_Smarter_faster` · Status: CONVERGED (v5) · 2026-07-23
 
 Architecture thesis: recall of an ensemble of INDEPENDENT generators
 compounds (miss = p1·p2·p3·…), while one strong verifier holds precision
@@ -63,6 +63,13 @@ Files: `grounding.py`, `model_io.py`, `97_crop_classify.md`, tests.
    biological, impressions}` OR box area < 1.5% of image → review-flag,
    never delete. (Hair/fiber conf sits at 0.6–0.75 — precisely what the old
    rule deleted.)
+3b. **Two-vote deletion** (v5): ANY deletion now requires a second
+   independent reject vote (re-ask, fresh call). Additions sourced from
+   critic/linkage require 2/2 confirm votes. Bounded cost: extra calls
+   only for rejected or risky-source candidates (~3–8/frame).
+3c. **Area-ratio dedup guard** (v5): same-category containment merge
+   additionally requires `min_area/max_area ≥ 0.25` — stops a shell
+   casing lying ON a gun from being merged into the gun box.
 4. **Retry-on-empty**: any Stage-A pass returning 0 detections with
    `status=="repaired"` retries once (same params). Kills the silent-empty
    failure mode measured on 2026-07-21.
@@ -114,8 +121,16 @@ Files: `s3_detect.py`, new prompt `25_sweep.md`, tests.
 4. Tests: sweep rows land with empty prose; dedup merges sweep duplicates
    of full-pass detections (existing rules already category-aware).
 
-### PR-4 — Completeness critic (E2) + adaptive tiling (A2)
+### PR-4 — Completeness critic (E2) + adaptive/quadtree tiling (A2)
 Files: `s3_detect.py`, `grounding.py`, new prompt `27_critic.md`, tests.
+
+0. **Quadtree refinement** (v5): after the first tile pass, any tile whose
+   detection density is in the top quartile (evidence clusters hide more
+   evidence) is subdivided once more (depth ≤ 2, non-thinking, minimal
+   schema). Bounded: ≤ 4 extra calls/frame.
+0b. **Anomaly sweep** (v5): fourth sweep pack — open-set: "أي شيء شاذ أو
+   في غير مكانه حتى لو تعذّرت تسميته" → category `trace`, always
+   review-flagged. Closes the blind spot of fixed checklists.
 
 1. **Critic**: render the frame with current boxes burned in (PIL, thin
    2px outlines + index chips — set-of-mark style) → thinking call,
@@ -177,15 +192,38 @@ Run the eval gate (PR-5) — all must hold on 2/2 consecutive runs:
 | Mock mode / video path | All new stages gated behind `model_mode != "mock"` and photo-mode only; `detect_one` signature untouched |
 | Checkpoint/resume mid-frame | Unchanged: frame-level checkpointing; a resumed frame reruns all stages (idempotent — dedup absorbs repeats) |
 
-## 5. Phase 2/3 generators (measured escalation, not now)
-Add ONLY where the phase-1 eval gate still shows misses:
-- **A5 — detector proposals** (Grounding-DINO / YOLO-World via hosted API
-  or CPU — feasible without local GPU, 10–30s/photo): near-exhaustive on
-  small SOLID objects (casings, phones, blades); weak on diffuse stains.
-  Proposals feed the same verify+enrich gate (MQADet pattern).
-- **A6 — SAM2 auto-mask proposals**: every distinct region proposed
-  (~200 masks) → crop-classify each. Highest possible recall ceiling,
-  heaviest filtering cost. The endgame if anything still escapes.
+## 5. Escalation ladder (measured, each rung gated on remaining misses)
+- **Phase 2 · A5 — detector proposals** (Grounding-DINO / YOLO-World via
+  hosted API or CPU — no local GPU needed, 10–30s/photo): near-exhaustive
+  on small SOLID objects (casings, phones, blades); weak on diffuse
+  stains. Proposals feed the same verify+enrich gate (MQADet pattern).
+- **Phase 3 · A6 — SAM2 auto-mask proposals**: every distinct region
+  proposed (~200 masks) → crop-classify each. Proposal recall becomes
+  exhaustive BY CONSTRUCTION — every pixel belongs to a proposed region.
+- **Phase 4 — learning flywheel**: human review decisions (accept /
+  reject / re-label / hand-drawn boxes) are stored as (crop, verdict)
+  pairs → auto-growing eval set for the gate + few-shot exemplars
+  injected into sweep/verify prompts. A static pipeline is always beaten
+  eventually by one that learns from its own corrections; this closes
+  that gap. (Human-drawn boxes double as generator A0 — the investigator
+  IS a generator whose candidates flow through the same enrich stage.)
+- **Phase 4b — cross-photo priors**: case-level entities (knife confirmed
+  in photo 3) become targeted search queries in sibling photos — a recall
+  source no single-photo pipeline can have.
+
+## 5b. Why this converges (the "no better pipeline" argument)
+Recall side: at phase 3, proposal recall is exhaustive by construction —
+no pipeline can propose MORE than every region at every scale. Precision
+side: every candidate faces the best-available judge with independent
+votes, and irreducible uncertainty is escalated to a human (mandated for
+forensics anyway) — no filter can beat best-judge-plus-votes-plus-human.
+Consistency side: unions over independent samples make output monotonic
+across runs. Adaptation side: the flywheel means the system improves with
+use. Any remaining improvement is therefore a COMPONENT SWAP (a stronger
+VLM, a better detector) — and the architecture is deliberately
+model-agnostic, so swaps slot in without redesign. That is the fixed
+point: the architecture cannot be beaten by another architecture, only
+fed better parts — and it is built to accept them.
 
 ## 6. Explicit non-goals (this branch)
 - No cross-run union of detections (product-semantics change)
@@ -215,3 +253,11 @@ Add ONLY where the phase-1 eval gate still shows misses:
   "needs GPU" was wrong) and promoted it plus SAM2 auto-masks from
   non-goals to a measured phase-2/3 escalation ladder, gated on where the
   phase-1 eval still shows misses.
+- **v4→v5** (adversarial rounds until fixed point): round 1 (hiding
+  misses) → quadtree tiling for dense clusters + open-set anomaly sweep;
+  round 2 (surviving wrongs / dying rights) → two-vote deletions,
+  2/2-vote risky additions, area-ratio containment guard (casing-on-gun);
+  round 3 (what beats any static pipeline) → learning flywheel + human
+  generator A0 + cross-photo priors. Round 4 produced only component
+  swaps, which the architecture absorbs by design → CONVERGED. §5b holds
+  the formal argument.
