@@ -16,6 +16,9 @@ services:
       # 12 concurrent calls: grounding/verify are many small non-thinking calls;
       # wall-clock scales ~1/concurrency (10 min -> ~4 min measured 2026-07-21)
       MODEL_MAX_CONCURRENCY: 12
+      # hard per-call deadline: heavy thinking detects run ~170s legit; a slow
+      # provider once served one call in 17.8 min -> cancel at 240s and retry
+      MODEL_TIMEOUT_S: 240
     volumes:
       - athar-data:/data
     ports:

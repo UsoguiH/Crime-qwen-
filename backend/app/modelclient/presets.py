@@ -47,6 +47,11 @@ def build_request_extras(settings: Settings, *, thinking: bool,
                 # eval pins strictly (ALLOW_FALLBACKS=false); production keeps
                 # fallbacks so an Alibaba outage degrades instead of failing
                 provider["allow_fallbacks"] = settings.openrouter_allow_fallbacks
+            else:
+                # route to the fastest replica: a slow provider once served a
+                # single detect call in 17.8 MINUTES (2026-07-23) and strangled
+                # the whole run — throughput sort avoids that class of stall
+                provider["sort"] = "throughput"
             extra_body["provider"] = provider
 
     return response_format, extra_body
