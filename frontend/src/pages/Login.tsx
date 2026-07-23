@@ -35,8 +35,7 @@ export default function Login() {
   return (
     <div ref={rootRef} className="min-h-screen grid place-items-center px-4">
       <div className="w-full max-w-3xl text-center">
-        <span data-anim="rise" className="inline-block"><Badge tone="error">سري</Badge></span>
-        <h1 data-anim="title" className="text-5xl mt-6 mb-2 font-normal">أثر</h1>
+        <h1 data-anim="title" className="text-5xl mt-6 mb-2 font-normal">الدليل الجنائي</h1>
         <p data-anim="title" className="text-body mb-1">نظام الدليل الجنائي بمساعدة الذكاء الاصطناعي</p>
         <p data-anim="title" className="text-muted text-sm mb-10">«كل تماسٍ يترك أثراً» — اختر حسابك للدخول</p>
         {isLoading ? (
