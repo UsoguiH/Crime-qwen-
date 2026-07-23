@@ -1,6 +1,12 @@
 # Implementation Plan — Exhaustive-Recall + Verified Pipeline
 
-Branch: `Make_Qwen_Smarter_faster` · Status: APPROVED-PENDING · v3 (2026-07-23)
+Branch: `Make_Qwen_Smarter_faster` · Status: APPROVED-PENDING · v4 (2026-07-23)
+
+Architecture thesis: recall of an ensemble of INDEPENDENT generators
+compounds (miss = p1·p2·p3·…), while one strong verifier holds precision
+constant. Every SOTA alternative surveyed is this same frame with different
+generators — so the roadmap is: ship the VLM generators now (phase 1),
+measure, then add non-VLM generators (phase 2/3) only where misses remain.
 
 Mission: the model must catch **every visible piece of evidence** on any photo,
 consistently across runs, with zero tolerance for hallucinations. Strategy from
@@ -15,9 +21,11 @@ one recovery loop, and turns the verifier into the single quality gate.
 
 ```
 ┌─ Stage A: candidate generation (ALL concurrent) ───────────────┐
-│ A1 full-frame thinking pass          (exists)                  │
-│ A2 adaptive tiles 2×2→3×3, 18% ovl   (upgrade)     thinking    │
-│ A3 category sweeps ×3, minimal JSON  (NEW)         instruct    │
+│ A1  full-frame thinking pass          (exists)                 │
+│ A1b full-frame ×2 resamples, temp .7  (NEW)        instruct    │
+│     self-consistency union — direct fix for run-to-run flicker │
+│ A2  adaptive tiles 2×2→3×3, 18% ovl   (upgrade)    thinking    │
+│ A3  category sweeps ×3, minimal JSON  (NEW)        instruct    │
 └────────────────────────────────────────────────────────────────┘
 → B strict dedup (exists)
 → C ground all (exists) → dedup (exists)
@@ -83,8 +91,14 @@ Files: `s3_detect.py`, `grounding.py` (geometry helper), new prompt
 5. Tests: geometry (covered/uncovered marker fixtures); crop mapping;
    dedup of linkage candidates against existing boxes.
 
-### PR-3 — Category sweeps (A3)
+### PR-3 — Category sweeps (A3) + resample union (A1b)
 Files: `s3_detect.py`, new prompt `25_sweep.md`, tests.
+
+0. **A1b resample union**: two extra full-frame detections with the
+   MINIMAL sweep schema, non-thinking, `temperature=0.7`, run inside the
+   Stage-A gather. Different seeds see different fragile objects; the
+   union + verifier turns run-to-run flicker into run-to-run stability.
+   (Direct attack on diagnosis #1 — measured 10↔24 detection spread.)
 
 1. One prompt file, parameterized by context `sweep_focus`: three focus
    packs — (a) بيولوجية/آثار دقيقة: كل بقعة دم، شعر، ألياف، سوائل، زجاج;
@@ -163,8 +177,17 @@ Run the eval gate (PR-5) — all must hold on 2/2 consecutive runs:
 | Mock mode / video path | All new stages gated behind `model_mode != "mock"` and photo-mode only; `detect_one` signature untouched |
 | Checkpoint/resume mid-frame | Unchanged: frame-level checkpointing; a resumed frame reruns all stages (idempotent — dedup absorbs repeats) |
 
-## 5. Explicit non-goals (this branch)
-- No GPU/open-vocab detector hybrid (MQADet pattern) — future, needs infra
+## 5. Phase 2/3 generators (measured escalation, not now)
+Add ONLY where the phase-1 eval gate still shows misses:
+- **A5 — detector proposals** (Grounding-DINO / YOLO-World via hosted API
+  or CPU — feasible without local GPU, 10–30s/photo): near-exhaustive on
+  small SOLID objects (casings, phones, blades); weak on diffuse stains.
+  Proposals feed the same verify+enrich gate (MQADet pattern).
+- **A6 — SAM2 auto-mask proposals**: every distinct region proposed
+  (~200 masks) → crop-classify each. Highest possible recall ceiling,
+  heaviest filtering cost. The endgame if anything still escapes.
+
+## 6. Explicit non-goals (this branch)
 - No cross-run union of detections (product-semantics change)
 - No per-call deadline (explicitly reverted by owner 2026-07-23)
 
@@ -184,3 +207,11 @@ Run the eval gate (PR-5) — all must hold on 2/2 consecutive runs:
   added the eval gate as its own PR — "smarter" must be measurable or it
   regresses silently; capped critic rounds at 2; linkage boxes marked
   grounded to skip a wasted re-ground call.
+- **v3→v4** (owner challenge: "is there nothing better?"): added A1b
+  self-consistency resample union — v3 fought stochastic misses only
+  indirectly through generator diversity, while resampling attacks the
+  measured 10↔24 run-to-run spread head-on; re-evaluated the detector
+  hybrid honestly (hosted API / CPU makes it feasible WITHOUT local GPU —
+  "needs GPU" was wrong) and promoted it plus SAM2 auto-masks from
+  non-goals to a measured phase-2/3 escalation ladder, gated on where the
+  phase-1 eval still shows misses.
