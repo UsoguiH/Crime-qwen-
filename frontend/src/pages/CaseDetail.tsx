@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { Spinner, StatusBadge } from "../components/ui";
 import { Case, Media, Run, get } from "../lib/api";
 import { fmtDate } from "../lib/format";
@@ -35,10 +34,7 @@ export default function CaseDetail() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <Link to="/" className="text-sm text-body hover:text-ink inline-flex items-center gap-1">
-            <ArrowRight size={14} /> قضية جديدة
-          </Link>
-          <div className="flex items-center gap-3 flex-wrap mt-1">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 data-anim="title" className="text-2xl font-normal">{caseData.title_ar}</h1>
             <StatusBadge status={caseData.status} />
           </div>
