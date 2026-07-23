@@ -274,16 +274,7 @@ class VLMClient:
                 and response_format == {"type": "json_object"}):
             kwargs["max_tokens"] = max_output_tokens
         try:
-            # hard wall-clock deadline: the SDK read-timeout does not bound a
-            # provider that trickles bytes — one call once ran 17.8 minutes.
-            # Cancel and let tenacity retry (rerouted, usually to a fast replica).
-            resp = await asyncio.wait_for(
-                client.chat.completions.create(**kwargs),
-                timeout=self.settings.model_timeout_s)
-        except asyncio.TimeoutError as exc:
-            import httpx
-            raise APITimeoutError(
-                request=httpx.Request("POST", "chat/completions")) from exc
+            resp = await client.chat.completions.create(**kwargs)
         except APIStatusError as exc:
             if exc.status_code >= 500:
                 raise InternalServerError(exc.message, response=exc.response,
